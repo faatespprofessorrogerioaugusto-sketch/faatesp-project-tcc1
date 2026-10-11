@@ -12,7 +12,10 @@ import {
   FileType,
   FileText,
   Loader2,
-  Bell
+  Bell,
+  Check,
+  Home,
+  ArrowRight
 } from 'lucide-react';
 import { getSignatureForProfessor } from '../utils/signatures';
 import { storageService } from '../services/storage';
@@ -59,6 +62,8 @@ export const FichaForm: React.FC<FichaFormProps> = ({
   const [isExportingDocx, setIsExportingDocx] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
 
   const handleDirectExportPdf = async () => {
     try {
@@ -254,8 +259,9 @@ export const FichaForm: React.FC<FichaFormProps> = ({
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsSaving(true);
     const isStudent = currentUser.role === 'aluno';
     const fichaToSave: FichaTCC = {
       ...formData,
@@ -268,8 +274,13 @@ export const FichaForm: React.FC<FichaFormProps> = ({
     setFormData(fichaToSave);
     storageService.saveFicha(fichaToSave);
     onSave(fichaToSave);
-    setSaveSuccessMsg('Ficha salva com sucesso! O alerta de correção foi concluído.');
-    setTimeout(() => setSaveSuccessMsg(''), 4000);
+    setIsSaving(false);
+    setJustSaved(true);
+    setSaveSuccessMsg('Ficha salva com sucesso! Os dados estão sincronizados na nuvem.');
+    setTimeout(() => {
+      setJustSaved(false);
+      setSaveSuccessMsg('');
+    }, 4000);
   };
 
   return (
@@ -759,6 +770,26 @@ export const FichaForm: React.FC<FichaFormProps> = ({
         </div>
       )}
 
+      {/* Real-time Save Status Notice Banner (at the footer where the user is looking!) */}
+      {justSaved && (
+        <div className="p-4 bg-emerald-950/95 border-2 border-emerald-500 text-emerald-200 rounded-2xl text-xs sm:text-sm font-semibold flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xl animate-fadeIn">
+          <div className="flex items-center space-x-2">
+            <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+            <span>Ficha salva com sucesso! Os dados estão sincronizados na nuvem.</span>
+          </div>
+          {onNavigateMain && (
+            <button
+              type="button"
+              onClick={onNavigateMain}
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all shadow flex items-center space-x-1 cursor-pointer shrink-0"
+            >
+              <span>Ir para Tela Inicial</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Save Button Footer */}
       <div className="flex flex-wrap items-center justify-end gap-2 pt-4 border-t border-slate-800">
         <button
@@ -783,12 +814,50 @@ export const FichaForm: React.FC<FichaFormProps> = ({
           <span>Exportar Word</span>
         </button>
 
+        {onNavigateMain && (
+          <button
+            type="button"
+            onClick={() => {
+              handleSubmit();
+              setTimeout(() => {
+                onNavigateMain();
+              }, 400);
+            }}
+            className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs sm:text-sm rounded-xl border border-slate-700 transition-colors flex items-center space-x-1.5 cursor-pointer"
+            title="Salvar alterações e voltar para a Tela Inicial"
+          >
+            <Home className="w-4 h-4 text-blue-400" />
+            <span>Salvar & Voltar</span>
+          </button>
+        )}
+
         <button
-          type="submit"
-          className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl shadow-lg transition-colors flex items-center space-x-2 cursor-pointer"
+          type="button"
+          onClick={() => handleSubmit()}
+          disabled={isSaving}
+          className={`px-6 py-2.5 font-bold text-sm rounded-xl shadow-lg transition-all duration-200 flex items-center space-x-2 cursor-pointer ${
+            justSaved
+              ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/50 scale-[1.02]'
+              : 'bg-blue-600 hover:bg-blue-500 active:scale-95 text-white shadow-blue-900/50'
+          }`}
+          title="Salvar alterações permanentemente"
         >
-          <Save className="w-4 h-4" />
-          <span>Salvar Alterações</span>
+          {isSaving ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Salvando dados...</span>
+            </>
+          ) : justSaved ? (
+            <>
+              <Check className="w-4 h-4 text-emerald-200" />
+              <span>Alterações Salvas com Sucesso!</span>
+            </>
+          ) : (
+            <>
+              <Save className="w-4 h-4" />
+              <span>Salvar Alterações</span>
+            </>
+          )}
         </button>
       </div>
       {/* Clear Form Confirmation Modal */}
