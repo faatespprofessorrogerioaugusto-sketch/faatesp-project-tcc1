@@ -98,9 +98,9 @@ export const FichaForm: React.FC<FichaFormProps> = ({
     }
   };
 
-  // Sync state if switching ficha ID or if ficha was updated
+  // Sync state ONLY when switching to a completely different ficha
   useEffect(() => {
-    if (ficha.id !== formData.id || ficha.ultimaAtualizacao !== formData.ultimaAtualizacao) {
+    if (ficha.id !== formData.id) {
       const instLogo = storageService.getInstitutionalLogo() || ficha.logoUrl || '';
       const prof = ficha.professorOrientador || (currentUser.role === 'orientador' ? currentUser.name : '');
       const sig = ficha.assinaturaUrl || getSignatureForProfessor(prof);
@@ -113,28 +113,38 @@ export const FichaForm: React.FC<FichaFormProps> = ({
         professorOrientador: prof,
         assinaturaUrl: sig
       });
+      lastSavedJson.current = JSON.stringify(ficha);
+      setAutoSaveStatus('Sincronizado');
     }
-  }, [ficha.id, ficha.ultimaAtualizacao]);
+  }, [ficha.id]);
 
-  // Debounced Auto-Save to localStorage so student work is NEVER lost
+  // Debounced local auto-save without infinite render loops
+  const lastSavedJson = useRef<string>(JSON.stringify(formData));
+
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
 
+    const currentJson = JSON.stringify(formData);
+    if (currentJson === lastSavedJson.current) {
+      return;
+    }
+
     setAutoSaveStatus('Salvando...');
     const timer = setTimeout(() => {
+      const isStudent = currentUser.role === 'aluno';
       const fichaToSave: FichaTCC = {
         ...formData,
-        usuarioId: formData.usuarioId || (currentUser.role === 'aluno' ? currentUser.id : ''),
-        usuarioEmail: formData.usuarioEmail || (currentUser.role === 'aluno' ? currentUser.email : ''),
+        usuarioId: formData.usuarioId || (isStudent ? currentUser.id : ''),
+        usuarioEmail: formData.usuarioEmail || (isStudent ? currentUser.email : ''),
         logoUrl: storageService.getInstitutionalLogo() || formData.logoUrl || ''
       };
       storageService.saveFicha(fichaToSave);
-      onSave(fichaToSave);
-      setAutoSaveStatus('Todas as alterações salvas automaticamente');
-    }, 800);
+      lastSavedJson.current = currentJson;
+      setAutoSaveStatus('Sincronizado');
+    }, 1200);
 
     return () => clearTimeout(timer);
   }, [formData]);
@@ -359,13 +369,6 @@ export const FichaForm: React.FC<FichaFormProps> = ({
         <div className="p-4 bg-emerald-950/90 border border-emerald-700 text-emerald-200 rounded-xl text-sm font-medium flex items-center space-x-2 animate-in fade-in">
           <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
           <span>{exportNotice}</span>
-        </div>
-      )}
-
-      {saveSuccessMsg && (
-        <div className="p-4 bg-emerald-950/80 border border-emerald-800 text-emerald-300 rounded-xl text-sm font-medium flex items-center space-x-2 animate-in fade-in">
-          <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
-          <span>{saveSuccessMsg}</span>
         </div>
       )}
 
