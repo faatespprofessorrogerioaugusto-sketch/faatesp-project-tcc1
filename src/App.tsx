@@ -120,7 +120,7 @@ export default function App() {
         activeScreen={activeScreen}
         onNavigate={setActiveScreen}
         onLogout={handleLogout}
-        hasUnreadParecer={Boolean(currentFicha?.parecerOrientador?.trim())}
+        hasUnreadParecer={Boolean(currentFicha?.parecerOrientador?.trim() && !currentFicha?.parecerAtendido)}
       />
 
       {/* Main Content Area */}

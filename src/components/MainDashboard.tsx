@@ -142,8 +142,8 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
         </div>
       )}
 
-      {/* Pulsing Card: Notificação de Parecer do Orientador para o Aluno */}
-      {activeFicha.parecerOrientador?.trim() && (
+      {/* Pulsing Card: Notificação de Parecer do Orientador para o Aluno (desaparece quando ajustado e salvo) */}
+      {activeFicha.parecerOrientador?.trim() && !activeFicha.parecerAtendido && (
         <div
           onClick={() => onNavigate('editar')}
           role="button"

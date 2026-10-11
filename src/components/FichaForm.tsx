@@ -256,15 +256,19 @@ export const FichaForm: React.FC<FichaFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const isStudent = currentUser.role === 'aluno';
     const fichaToSave: FichaTCC = {
       ...formData,
-      usuarioId: formData.usuarioId || (currentUser.role === 'aluno' ? currentUser.id : ''),
-      usuarioEmail: formData.usuarioEmail || (currentUser.role === 'aluno' ? currentUser.email : ''),
+      usuarioId: formData.usuarioId || (isStudent ? currentUser.id : ''),
+      usuarioEmail: formData.usuarioEmail || (isStudent ? currentUser.email : ''),
+      parecerAtendido: isStudent && Boolean(formData.parecerOrientador?.trim()) ? true : formData.parecerAtendido,
+      dataAtendimentoParecer: isStudent && Boolean(formData.parecerOrientador?.trim()) ? new Date().toISOString() : formData.dataAtendimentoParecer,
       logoUrl: storageService.getInstitutionalLogo() || formData.logoUrl || ''
     };
+    setFormData(fichaToSave);
     storageService.saveFicha(fichaToSave);
     onSave(fichaToSave);
-    setSaveSuccessMsg('Ficha salva com sucesso! Os dados estão permanentemente salvos na sua conta.');
+    setSaveSuccessMsg('Ficha salva com sucesso! O alerta de correção foi concluído.');
     setTimeout(() => setSaveSuccessMsg(''), 4000);
   };
 
@@ -371,11 +375,22 @@ export const FichaForm: React.FC<FichaFormProps> = ({
                 </p>
               </div>
             </div>
-            {formData.nota && (
-              <span className="self-start sm:self-auto px-3 py-1 bg-amber-400 text-slate-950 font-black text-xs rounded-lg shadow-sm">
-                Nota: {formData.nota}
-              </span>
-            )}
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              {formData.parecerAtendido ? (
+                <span className="px-2.5 py-1 bg-emerald-950 text-emerald-300 border border-emerald-700/80 font-bold text-xs rounded-lg shadow-sm flex items-center space-x-1">
+                  <span>✓ Ajustes Salvos</span>
+                </span>
+              ) : (
+                <span className="px-2.5 py-1 bg-amber-950 text-amber-300 border border-amber-500/80 font-bold text-xs rounded-lg shadow-sm animate-pulse">
+                  Aguardando Ajustes
+                </span>
+              )}
+              {formData.nota && (
+                <span className="px-3 py-1 bg-amber-400 text-slate-950 font-black text-xs rounded-lg shadow-sm">
+                  Nota: {formData.nota}
+                </span>
+              )}
+            </div>
           </div>
           <div className="p-4 bg-black/40 rounded-xl border border-amber-500/30 text-amber-100 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap font-medium">
             {formData.parecerOrientador}

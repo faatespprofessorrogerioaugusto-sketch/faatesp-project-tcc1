@@ -357,9 +357,14 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
   const handleSaveReview = (downloadPdfAfter = false) => {
     if (!selectedFicha) return;
 
+    const hasParecerText = Boolean(parecerText?.trim());
+    const isNewOrUpdatedParecer = hasParecerText && parecerText.trim() !== (selectedFicha.parecerOrientador || '').trim();
+
     const updatedFicha: FichaTCC = {
       ...selectedFicha,
       parecerOrientador: parecerText,
+      dataParecer: isNewOrUpdatedParecer ? new Date().toISOString() : (selectedFicha.dataParecer || new Date().toISOString()),
+      parecerAtendido: isNewOrUpdatedParecer ? false : (selectedFicha.parecerAtendido ?? false),
       nota: notaInput,
       status: statusInput,
       assinaturaUrl: assinaturaUrl || selectedFicha.assinaturaUrl || getSignatureForProfessor(selectedFicha.professorOrientador || currentUser.name),

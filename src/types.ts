@@ -40,6 +40,9 @@ export interface FichaTCC {
   logoUrl?: string;
   assinaturaUrl?: string;
   parecerOrientador?: string;
+  parecerAtendido?: boolean;
+  dataParecer?: string;
+  dataAtendimentoParecer?: string;
 }
 
 export type ActiveScreen = 'main' | 'editar' | 'preview' | 'historico' | 'consulta';
