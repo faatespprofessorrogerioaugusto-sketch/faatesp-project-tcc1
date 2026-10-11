@@ -1,0 +1,39 @@
+{
+  "entities": {
+    "fichas": {
+      "fields": {
+        "tituloTrabalho": { "type": "string" },
+        "nomeAluno": { "type": "string" },
+        "curso": { "type": "string" },
+        "semestre": { "type": "string" },
+        "professorOrientador": { "type": "string" },
+        "situacaoProblema": { "type": "string" },
+        "hipotese": { "type": "string" },
+        "bibliografia": { "type": "string" },
+        "nota": { "type": "string" },
+        "status": { "type": "string" },
+        "dataCriacao": { "type": "string" },
+        "ultimaAtualizacao": { "type": "string" },
+        "usuarioId": { "type": "string" },
+        "orientadorId": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "parecerOrientador": { "type": "string" },
+        "dataParecer": { "type": "string" },
+        "orientacoes": { "type": "array" }
+      }
+    },
+    "users": {
+      "fields": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" }
+      }
+    },
+    "systemConfig": {
+      "fields": {
+        "institutionalLogo": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    }
+  }
+}

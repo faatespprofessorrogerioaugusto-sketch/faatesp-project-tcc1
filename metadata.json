@@ -1,0 +1,6 @@
+{
+  "name": "Project Maker - Faatesp",
+  "description": "Sistema para preenchimento, visualização, salvamento e exportação de fichas de atividades de TCC.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

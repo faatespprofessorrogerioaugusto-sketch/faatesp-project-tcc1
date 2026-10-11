@@ -1,0 +1,15 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Permitir leitura e escrita para o sistema de gestão de TCC
+    match /fichas/{fichaId} {
+      allow read, write: if true;
+    }
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+    match /systemConfig/{configId} {
+      allow read, write: if true;
+    }
+  }
+}
