@@ -27,16 +27,35 @@ function normalizeEmail(email: string): string {
 
 function isOrientadorAuthorized(email: string): boolean {
   if (!email) return false;
-  return ALLOWED_ORIENTADOR_EMAILS.includes(normalizeEmail(email));
+  const norm = normalizeEmail(email);
+  // marines.borba@icloud.com is strictly registered as Aluno, not Orientador
+  if (norm === 'marines.borba@icloud.com') {
+    return false;
+  }
+  if (ALLOWED_ORIENTADOR_EMAILS.includes(norm)) return true;
+  if (norm.startsWith('rogerioaugusto')) {
+    return true;
+  }
+  return false;
 }
 
 function getPredefinedNameForEmail(email: string, role: UserRole): string {
   const norm = normalizeEmail(email);
-  if (norm === 'rogerioaugusto@gmail.com' || norm === 'faatesp.professor.rogerioaugusto@gmail.com') {
+  if (
+    norm === 'rogerioaugusto@gmail.com' ||
+    norm === 'faatesp.professor.rogerioaugusto@gmail.com' ||
+    norm.startsWith('rogerioaugusto')
+  ) {
     return role === 'orientador' ? 'Prof. Rogério Augusto' : 'Rogério Augusto';
   }
-  if (norm === 'marines.borba1@gmail.com') {
-    return role === 'orientador' ? 'Profa. Marinês Borba' : 'Marinês Borba';
+  if (norm === 'marines.borba@icloud.com') {
+    return 'Marines Rodrigues de Borba';
+  }
+  if (
+    norm === 'marines.borba1@gmail.com' ||
+    norm === 'marines.borba@gmail.com'
+  ) {
+    return role === 'orientador' ? 'Profa. Marinês Borba' : 'Marines Rodrigues de Borba';
   }
   // Generate friendly name from email username part for alunos
   const username = email.split('@')[0] || 'Aluno';

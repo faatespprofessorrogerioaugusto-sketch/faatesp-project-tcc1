@@ -20,7 +20,12 @@ export default function App() {
   // Initial screen must ALWAYS be the Login Screen (do not auto-login on startup)
   useEffect(() => {
     setUser(null);
-    loadFichasData(null);
+    setActiveFicha(null);
+    try {
+      localStorage.removeItem('pm_faatesp_active_ficha_id');
+    } catch {
+      // ignore
+    }
   }, []);
 
   // Real-time Firestore subscription to synchronize between multiple devices/browsers
@@ -42,31 +47,39 @@ export default function App() {
     const allFichas = await cloudStorageService.getFichas();
     setFichas(allFichas);
 
-    const activeId = storageService.getActiveFichaId();
-    if (activeUser?.role === 'aluno') {
+    if (!activeUser) {
+      setActiveFicha(null);
+      return;
+    }
+
+    if (activeUser.role === 'aluno') {
       const studentFicha = await cloudStorageService.getStudentFicha(activeUser);
       setActiveFicha(studentFicha);
+      storageService.setActiveFichaId(studentFicha.id);
       const updatedAll = await cloudStorageService.getFichas();
       setFichas(updatedAll);
     } else {
-      const profName = activeUser?.name || '';
-      const profNorm = profName.replace(/^(prof|profa)\.?\s+/i, '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const assigned = profNorm.length >= 3 ? allFichas.find((f) => {
-        if (!f.professorOrientador) return false;
-        const fProfNorm = f.professorOrientador.replace(/^(prof|profa)\.?\s+/i, '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        return fProfNorm.includes(profNorm) || profNorm.includes(fProfNorm);
-      }) : null;
-      const found = (activeId ? allFichas.find((f) => f.id === activeId) : null) || assigned || allFichas[0] || null;
-      setActiveFicha(found);
+      // For Professor Orientador:
+      // The orientador evaluates student fichas. If an active ficha was previously selected to review, load it;
+      // otherwise, keep activeFicha as null so the orientador selects from the list.
+      const activeId = storageService.getActiveFichaId();
+      const found = activeId ? allFichas.find((f) => f.id === activeId) : null;
+      setActiveFicha(found || null);
     }
   };
 
   const handleLoginSuccess = async (loggedUser: User) => {
     storageService.setLoggedUser(loggedUser);
     cloudStorageService.logUserAccess(loggedUser, 'login');
-    setUser(loggedUser);
+    // Clear any previous active ficha from other users
+    setActiveFicha(null);
     await loadFichasData(loggedUser);
-    setActiveScreen('main');
+    setUser(loggedUser);
+    if (loggedUser.role === 'orientador') {
+      setActiveScreen('consulta');
+    } else {
+      setActiveScreen('main');
+    }
   };
 
   const handleLogout = () => {
@@ -78,6 +91,7 @@ export default function App() {
     setActiveFicha(null);
     try {
       localStorage.removeItem('pm_faatesp_active_ficha_id');
+      localStorage.removeItem('pm_faatesp_active_ficha');
     } catch {
       // ignore
     }
@@ -96,7 +110,7 @@ export default function App() {
     if (!user) return;
     const newFicha = storageService.createNewFicha(user);
     await cloudStorageService.saveFicha(newFicha);
-    await loadFichasData();
+    await loadFichasData(user);
     setActiveFicha(newFicha);
     storageService.setActiveFichaId(newFicha.id);
     setActiveScreen('editar');
@@ -116,7 +130,7 @@ export default function App() {
 
   const handleDeleteFicha = async (id: string) => {
     await cloudStorageService.deleteFicha(id);
-    await loadFichasData();
+    await loadFichasData(user);
   };
 
   // 1. Separate Login Screen Gate
@@ -124,8 +138,13 @@ export default function App() {
     return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
   }
 
-  // Fallback if no active ficha exists
-  const currentFicha = activeFicha || (fichas[0] ?? storageService.createNewFicha(user));
+  // Safe resolution of current ficha: NEVER fall back to another student's ficha for an aluno!
+  const userEmailNorm = (user.email || '').trim().toLowerCase();
+  const currentFicha = activeFicha || (
+    user.role === 'aluno'
+      ? (fichas.find(f => (f.usuarioEmail || '').trim().toLowerCase() === userEmailNorm) ?? storageService.createNewFicha(user))
+      : (fichas.length > 0 ? fichas[0] : storageService.createNewFicha(user))
+  );
 
   return (
     <div className="min-h-screen bg-[#070C18] font-sans text-slate-100 flex flex-col selection:bg-blue-600 selection:text-white">

@@ -143,7 +143,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
       )}
 
       {/* Pulsing Card: Notificação de Parecer do Orientador para o Aluno (desaparece quando ajustado e salvo) */}
-      {activeFicha.parecerOrientador?.trim() && !activeFicha.parecerAtendido && (
+      {user.role === 'aluno' && activeFicha.parecerOrientador?.trim() && !activeFicha.parecerAtendido && (
         <div
           onClick={() => onNavigate('editar')}
           role="button"
@@ -219,7 +219,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
           <div>
             <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider bg-blue-950/80 px-2.5 py-0.5 rounded-md border border-blue-800/80">
-              Ficha em Andamento
+              {user.role === 'orientador' ? 'Ficha de Aluno em Análise' : 'Ficha em Andamento'}
             </span>
             <h2 className="text-lg font-bold text-white mt-1.5 leading-snug">
               {activeFicha.tituloTrabalho || 'Título do Trabalho não informado'}

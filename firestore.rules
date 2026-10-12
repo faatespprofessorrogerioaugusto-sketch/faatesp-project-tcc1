@@ -11,5 +11,8 @@ service cloud.firestore {
     match /systemConfig/{configId} {
       allow read, write: if true;
     }
+    match /accessLogs/{logId} {
+      allow read, write: if true;
+    }
   }
 }

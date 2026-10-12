@@ -362,23 +362,31 @@ export const storageService = {
       found = allFichas.find((f) => f.usuarioId === userId);
     }
 
-    // 3. Match by student name with accent and space normalization
+    // 3. Match by student name with accent and space normalization (NEVER match a ficha belonging to another email)
     if (!found && user.name) {
       const normTarget = normalizePersonName(user.name);
-      if (normTarget.length >= 3) {
+      if (normTarget.length >= 4) {
         found = allFichas.find((f) => {
+          if (f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() !== userEmailNorm) {
+            return false;
+          }
           const normFicha = normalizePersonName(f.nomeAluno);
+          if (normFicha.length < 4) return false;
           return normFicha === normTarget || normFicha.includes(normTarget) || normTarget.includes(normFicha);
         });
       }
     }
 
-    // 4. Match by email username prefix against student name
+    // 4. Match by email username prefix against student name (NEVER match a ficha belonging to another email)
     if (!found && user.email) {
       const emailPrefix = normalizePersonName(user.email.split('@')[0]);
       if (emailPrefix.length >= 4) {
         found = allFichas.find((f) => {
+          if (f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() !== userEmailNorm) {
+            return false;
+          }
           const normFicha = normalizePersonName(f.nomeAluno);
+          if (normFicha.length < 4) return false;
           return normFicha === emailPrefix || normFicha.includes(emailPrefix) || emailPrefix.includes(normFicha);
         });
       }
@@ -387,6 +395,11 @@ export const storageService = {
     // 5. If none exists, create and bind a brand new persistent ficha for this student
     if (!found) {
       found = this.createNewFicha(user);
+      found.usuarioEmail = user.email;
+      found.usuarioId = user.id;
+      if (user.name) {
+        found.nomeAluno = user.name;
+      }
       this.saveFicha(found);
     } else {
       // Ensure user credentials and institutional logo are linked

@@ -192,8 +192,8 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
     const userEmail = currentUser.email || 'rogerioaugusto@gmail.com';
     setDestinatarioEmail(userEmail);
     setEmailSubject('FICHA DE ORIENTAÇÃO - FAATESP');
-    const studentName = currentUser.name || ficha.nomeAluno || 'Aluno';
-    const profName = ficha.professorOrientador || 'Prof. Orientador';
+    const studentName = ficha.nomeAluno || 'Aluno';
+    const profName = ficha.professorOrientador || currentUser.name || 'Prof. Orientador';
 
     setEmailBody(
       `Prezado(a): ${studentName},\n\n` +

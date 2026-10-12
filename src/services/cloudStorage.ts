@@ -160,23 +160,31 @@ export const cloudStorageService = {
         found = all.find((f) => f.usuarioId === userId);
       }
 
-      // 3. Match by student name with accent and space normalization
+      // 3. Match by student name with accent and space normalization (NEVER match a ficha belonging to another email)
       if (!found && user.name) {
         const normTarget = normalizePersonName(user.name);
-        if (normTarget.length >= 3) {
+        if (normTarget.length >= 4) {
           found = all.find((f) => {
+            if (f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() !== userEmailNorm) {
+              return false;
+            }
             const normFicha = normalizePersonName(f.nomeAluno);
+            if (normFicha.length < 4) return false;
             return normFicha === normTarget || normFicha.includes(normTarget) || normTarget.includes(normFicha);
           });
         }
       }
 
-      // 4. Match by email username prefix against student name (e.g., rogerioaugusto vs Rogério Augusto)
+      // 4. Match by email username prefix against student name (NEVER match a ficha belonging to another email)
       if (!found && user.email) {
         const emailPrefix = normalizePersonName(user.email.split('@')[0]);
         if (emailPrefix.length >= 4) {
           found = all.find((f) => {
+            if (f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() !== userEmailNorm) {
+              return false;
+            }
             const normFicha = normalizePersonName(f.nomeAluno);
+            if (normFicha.length < 4) return false;
             return normFicha === emailPrefix || normFicha.includes(emailPrefix) || emailPrefix.includes(normFicha);
           });
         }
@@ -185,6 +193,11 @@ export const cloudStorageService = {
       // 5. If still not found, create a brand-new persistent personal ficha for this student
       if (!found) {
         found = storageService.createNewFicha(user);
+        found.usuarioEmail = user.email;
+        found.usuarioId = user.id;
+        if (user.name) {
+          found.nomeAluno = user.name;
+        }
         await this.saveFicha(found);
       } else {
         // Guarantee user's email, ID and name are securely bound to their ficha
