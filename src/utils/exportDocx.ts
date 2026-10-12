@@ -132,16 +132,16 @@ export async function generateDocx(ficha: FichaTCC): Promise<void> {
                 })
               ]),
 
-          // Dark Banner "FICHA DE ACOMPANHAMENTO DE TCC"
+          // Header Banner "FICHA DE ACOMPANHAMENTO DE TCC" - Clean White Background
           new Table({
             layout: TableLayoutType.FIXED,
             width: { size: TOTAL_PAGE_WIDTH_DXA, type: WidthType.DXA },
             columnWidths: [TOTAL_PAGE_WIDTH_DXA],
             borders: {
-              top: { style: BorderStyle.NONE },
-              bottom: { style: BorderStyle.NONE },
-              left: { style: BorderStyle.NONE },
-              right: { style: BorderStyle.NONE },
+              top: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
+              bottom: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
+              left: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
+              right: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
               insideHorizontal: { style: BorderStyle.NONE },
               insideVertical: { style: BorderStyle.NONE }
             },
@@ -150,12 +150,12 @@ export async function generateDocx(ficha: FichaTCC): Promise<void> {
                 children: [
                   new TableCell({
                     width: { size: TOTAL_PAGE_WIDTH_DXA, type: WidthType.DXA },
-                    shading: { fill: '071526' },
+                    shading: { fill: 'FFFFFF' },
                     borders: {
-                      top: { style: BorderStyle.NONE },
-                      bottom: { style: BorderStyle.NONE },
-                      left: { style: BorderStyle.NONE },
-                      right: { style: BorderStyle.NONE }
+                      top: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
+                      bottom: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
+                      left: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
+                      right: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' }
                     },
                     children: [
                       new Paragraph({
@@ -167,7 +167,7 @@ export async function generateDocx(ficha: FichaTCC): Promise<void> {
                             bold: true,
                             size: 20,
                             font: 'Arial',
-                            color: 'FFFFFF'
+                            color: '0F172A'
                           })
                         ]
                       })
@@ -198,7 +198,7 @@ export async function generateDocx(ficha: FichaTCC): Promise<void> {
               new TableRow({
                 children: [
                   createFieldCell('NOME DO ALUNO(A):', ficha.nomeAluno || 'Não informado', true, 7776),
-                  createFieldCell('SEMESTRE / ANO:', ficha.semestre || '7º Semestre 2026/2', true, 3024, '0066CC')
+                  createFieldCell('SEMESTRE / ANO:', ficha.semestre || '7º Semestre 2026/2', true, 3024, '0F172A')
                 ]
               }),
               // Row 2: Curso & Professor Orientador
@@ -391,10 +391,10 @@ function createSectionHeader(title: string): Table {
     width: { size: TOTAL_PAGE_WIDTH_DXA, type: WidthType.DXA },
     columnWidths: [TOTAL_PAGE_WIDTH_DXA],
     borders: {
-      top: { style: BorderStyle.NONE },
-      bottom: { style: BorderStyle.NONE },
-      left: { style: BorderStyle.NONE },
-      right: { style: BorderStyle.NONE },
+      top: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
+      bottom: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
+      left: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
+      right: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
       insideHorizontal: { style: BorderStyle.NONE },
       insideVertical: { style: BorderStyle.NONE }
     },
@@ -403,12 +403,12 @@ function createSectionHeader(title: string): Table {
         children: [
           new TableCell({
             width: { size: TOTAL_PAGE_WIDTH_DXA, type: WidthType.DXA },
-            shading: { fill: '071526' },
+            shading: { fill: 'FFFFFF' },
             borders: {
-              top: { style: BorderStyle.NONE },
-              bottom: { style: BorderStyle.NONE },
-              left: { style: BorderStyle.NONE },
-              right: { style: BorderStyle.NONE }
+              top: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
+              bottom: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
+              left: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
+              right: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' }
             },
             children: [
               new Paragraph({
@@ -419,7 +419,7 @@ function createSectionHeader(title: string): Table {
                     bold: true,
                     size: 18,
                     font: 'Arial',
-                    color: 'FFFFFF'
+                    color: '0F172A'
                   })
                 ]
               })
@@ -437,10 +437,10 @@ function createOrientationsHeader(total: number): Table {
     width: { size: TOTAL_PAGE_WIDTH_DXA, type: WidthType.DXA },
     columnWidths: [TOTAL_PAGE_WIDTH_DXA],
     borders: {
-      top: { style: BorderStyle.NONE },
-      bottom: { style: BorderStyle.NONE },
-      left: { style: BorderStyle.NONE },
-      right: { style: BorderStyle.NONE },
+      top: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
+      bottom: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
+      left: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
+      right: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
       insideHorizontal: { style: BorderStyle.NONE },
       insideVertical: { style: BorderStyle.NONE }
     },
@@ -449,12 +449,12 @@ function createOrientationsHeader(total: number): Table {
         children: [
           new TableCell({
             width: { size: TOTAL_PAGE_WIDTH_DXA, type: WidthType.DXA },
-            shading: { fill: '071526' },
+            shading: { fill: 'FFFFFF' },
             borders: {
-              top: { style: BorderStyle.NONE },
-              bottom: { style: BorderStyle.NONE },
-              left: { style: BorderStyle.NONE },
-              right: { style: BorderStyle.NONE }
+              top: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
+              bottom: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
+              left: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' },
+              right: { style: BorderStyle.SINGLE, size: 4, color: '0F172A' }
             },
             children: [
               new Paragraph({
@@ -465,13 +465,13 @@ function createOrientationsHeader(total: number): Table {
                     bold: true,
                     size: 18,
                     font: 'Arial',
-                    color: 'FFFFFF'
+                    color: '0F172A'
                   }),
                   new TextRun({
                     text: `   (Total: ${total} registrada(s))`,
                     font: 'Arial',
                     size: 15,
-                    color: 'CBD5E1'
+                    color: '64748B'
                   })
                 ]
               })
@@ -616,7 +616,7 @@ function createGradeCell(nota?: string, widthDxa: number = 3024): TableCell {
             bold: true,
             font: 'Arial',
             size: 20,
-            color: '0066CC'
+            color: '0F172A'
           })
         ]
       })

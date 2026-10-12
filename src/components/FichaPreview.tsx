@@ -53,8 +53,9 @@ export const FichaPreview: React.FC<FichaPreviewProps> = ({
           </div>
           <div
             style={{
-              backgroundColor: '#071526',
-              color: '#ffffff',
+              backgroundColor: '#ffffff',
+              color: '#0f172a',
+              border: '1.5px solid #0f172a',
               borderRadius: '4px',
               padding: '4px 12px 6px 12px',
               textAlign: 'center',
@@ -115,10 +116,10 @@ export const FichaPreview: React.FC<FichaPreviewProps> = ({
                   backgroundColor: '#ffffff'
                 }}
               >
-                <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#0056b3', display: 'block', textTransform: 'uppercase', lineHeight: '1' }}>
+                <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#64748b', display: 'block', textTransform: 'uppercase', lineHeight: '1' }}>
                   SEMESTRE / ANO:
                 </span>
-                <span style={{ fontSize: '12px', fontWeight: 900, color: '#0066cc', display: 'block', marginTop: '3px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 900, color: '#0f172a', display: 'block', marginTop: '3px' }}>
                   {semestreText}
                 </span>
               </td>
@@ -191,7 +192,7 @@ export const FichaPreview: React.FC<FichaPreviewProps> = ({
                 <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#475569', display: 'block', textTransform: 'uppercase', lineHeight: '1' }}>
                   NOTA FINAL:
                 </span>
-                <span style={{ fontSize: '13px', fontWeight: 900, color: '#0066cc', display: 'block', marginTop: '3px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 900, color: '#0f172a', display: 'block', marginTop: '3px' }}>
                   {ficha.nota ? `${ficha.nota} / 10` : '___ / 10'}
                 </span>
               </td>
@@ -205,8 +206,9 @@ export const FichaPreview: React.FC<FichaPreviewProps> = ({
           <div style={{ marginBottom: '8px' }}>
             <div
               style={{
-                backgroundColor: '#071526',
-                color: '#ffffff',
+                backgroundColor: '#ffffff',
+                color: '#0f172a',
+                border: '1.5px solid #0f172a',
                 padding: '3px 8px 5px 8px',
                 fontWeight: 'bold',
                 fontSize: '11px',
@@ -225,7 +227,7 @@ export const FichaPreview: React.FC<FichaPreviewProps> = ({
             </div>
             <div
               style={{
-                border: '1.5px solid #071526',
+                border: '1.5px solid #0f172a',
                 borderTop: 'none',
                 padding: '10px 18px',
                 backgroundColor: '#ffffff',
@@ -246,8 +248,9 @@ export const FichaPreview: React.FC<FichaPreviewProps> = ({
           <div style={{ marginBottom: '8px' }}>
             <div
               style={{
-                backgroundColor: '#071526',
-                color: '#ffffff',
+                backgroundColor: '#ffffff',
+                color: '#0f172a',
+                border: '1.5px solid #0f172a',
                 padding: '3px 8px 5px 8px',
                 fontWeight: 'bold',
                 fontSize: '11px',
@@ -266,7 +269,7 @@ export const FichaPreview: React.FC<FichaPreviewProps> = ({
             </div>
             <div
               style={{
-                border: '1.5px solid #071526',
+                border: '1.5px solid #0f172a',
                 borderTop: 'none',
                 padding: '10px 18px',
                 backgroundColor: '#ffffff',
@@ -287,8 +290,9 @@ export const FichaPreview: React.FC<FichaPreviewProps> = ({
           <div style={{ marginBottom: '8px' }}>
             <div
               style={{
-                backgroundColor: '#071526',
-                color: '#ffffff',
+                backgroundColor: '#ffffff',
+                color: '#0f172a',
+                border: '1.5px solid #0f172a',
                 padding: '3px 8px 5px 8px',
                 fontWeight: 'bold',
                 fontSize: '11px',
@@ -307,7 +311,7 @@ export const FichaPreview: React.FC<FichaPreviewProps> = ({
             </div>
             <div
               style={{
-                border: '1.5px solid #071526',
+                border: '1.5px solid #0f172a',
                 borderTop: 'none',
                 padding: '10px 18px',
                 backgroundColor: '#ffffff',
@@ -336,8 +340,9 @@ export const FichaPreview: React.FC<FichaPreviewProps> = ({
         <div style={{ marginBottom: '10px' }}>
           <div
             style={{
-              backgroundColor: '#071526',
-              color: '#ffffff',
+              backgroundColor: '#ffffff',
+              color: '#0f172a',
+              border: '1.5px solid #0f172a',
               padding: '3px 8px 5px 8px',
               fontWeight: 'bold',
               fontSize: '11px',
@@ -352,7 +357,7 @@ export const FichaPreview: React.FC<FichaPreviewProps> = ({
             <span style={{ transform: 'translateY(-1.5px)', display: 'inline-block' }}>
               REGISTRO DE ORIENTAÇÕES PRESENCIAIS (MÍNIMO DE 2 ORIENTAÇÕES)
             </span>
-            <span style={{ fontSize: '9px', fontWeight: 'normal', color: '#cbd5e1', transform: 'translateY(-1.5px)', display: 'inline-block' }}>
+            <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#64748b', transform: 'translateY(-1.5px)', display: 'inline-block' }}>
               Total: {orientacoes.length} orientação(ões)
             </span>
           </div>

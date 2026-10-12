@@ -74,6 +74,7 @@ export default function App() {
   const handleSaveFicha = async (updatedFicha: FichaTCC) => {
     await cloudStorageService.saveFicha(updatedFicha);
     setActiveFicha(updatedFicha);
+    storageService.setActiveFichaId(updatedFicha.id);
     const refreshed = await cloudStorageService.getFichas();
     setFichas(refreshed);
   };
@@ -84,6 +85,7 @@ export default function App() {
     await cloudStorageService.saveFicha(newFicha);
     await loadFichasData();
     setActiveFicha(newFicha);
+    storageService.setActiveFichaId(newFicha.id);
     setActiveScreen('editar');
   };
 
@@ -141,10 +143,12 @@ export default function App() {
             onSaveFicha={handleSaveFicha}
             onDeleteFicha={handleDeleteFicha}
             onSelectFichaForPreview={(ficha) => {
+              storageService.setActiveFichaId(ficha.id);
               setActiveFicha(ficha);
               setActiveScreen('preview');
             }}
             onNavigateToEdit={(ficha) => {
+              storageService.setActiveFichaId(ficha.id);
               setActiveFicha(ficha);
               setActiveScreen('editar');
             }}

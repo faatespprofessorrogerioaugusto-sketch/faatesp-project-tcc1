@@ -133,7 +133,7 @@ export const FichaForm: React.FC<FichaFormProps> = ({
     }
 
     setAutoSaveStatus('Salvando...');
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       const isStudent = currentUser.role === 'aluno';
       const fichaToSave: FichaTCC = {
         ...formData,
@@ -142,6 +142,11 @@ export const FichaForm: React.FC<FichaFormProps> = ({
         logoUrl: storageService.getInstitutionalLogo() || formData.logoUrl || ''
       };
       storageService.saveFicha(fichaToSave);
+      try {
+        await onSave(fichaToSave);
+      } catch (err) {
+        console.warn('Auto-save cloud sync:', err);
+      }
       lastSavedJson.current = currentJson;
       setAutoSaveStatus('Sincronizado');
     }, 1200);
@@ -269,7 +274,7 @@ export const FichaForm: React.FC<FichaFormProps> = ({
     }));
   };
 
-  const handleSubmit = (e?: React.FormEvent) => {
+  const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setIsSaving(true);
     const isStudent = currentUser.role === 'aluno';
@@ -283,7 +288,11 @@ export const FichaForm: React.FC<FichaFormProps> = ({
     };
     setFormData(fichaToSave);
     storageService.saveFicha(fichaToSave);
-    onSave(fichaToSave);
+    try {
+      await onSave(fichaToSave);
+    } catch (err) {
+      console.error('Erro ao salvar ficha:', err);
+    }
     setIsSaving(false);
     setJustSaved(true);
     setSaveSuccessMsg('Ficha salva com sucesso! Os dados estão sincronizados na nuvem.');

@@ -354,7 +354,7 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
     }
   };
 
-  const handleSaveReview = (downloadPdfAfter = false) => {
+  const handleSaveReview = async (downloadPdfAfter = false) => {
     if (!selectedFicha) return;
 
     const hasParecerText = Boolean(parecerText?.trim());
@@ -372,7 +372,11 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
       ultimaAtualizacao: new Date().toISOString()
     };
 
-    onSaveFicha(updatedFicha);
+    try {
+      await onSaveFicha(updatedFicha);
+    } catch (err) {
+      console.error('Erro ao salvar parecer do orientador:', err);
+    }
     setSelectedFicha(updatedFicha);
     setSaveSuccessMsg(true);
 
@@ -385,7 +389,7 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
     }
   };
 
-  const handleConfirmOrientation = (oriId: string) => {
+  const handleConfirmOrientation = async (oriId: string) => {
     if (!selectedFicha) return;
 
     const updatedOrientacoes = selectedFicha.orientacoes.map(o => {
@@ -407,7 +411,11 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
       ultimaAtualizacao: new Date().toISOString()
     };
 
-    onSaveFicha(updatedFicha);
+    try {
+      await onSaveFicha(updatedFicha);
+    } catch (err) {
+      console.error('Erro ao validar orientação:', err);
+    }
     setSelectedFicha(updatedFicha);
   };
 

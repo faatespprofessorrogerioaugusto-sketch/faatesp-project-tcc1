@@ -18,18 +18,45 @@ const FICHAS_COLLECTION = 'fichas';
 const CONFIG_COLLECTION = 'systemConfig';
 const ACCESS_LOGS_COLLECTION = 'accessLogs';
 
+function sanitizeForFirestore(data: any): any {
+  if (data === undefined) {
+    return null;
+  }
+  if (data === null || typeof data !== 'object') {
+    return data;
+  }
+  if (Array.isArray(data)) {
+    return data.map((item) => sanitizeForFirestore(item));
+  }
+  const clean: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== undefined) {
+      clean[key] = sanitizeForFirestore(value);
+    } else {
+      clean[key] = null;
+    }
+  }
+  return clean;
+}
+
 export const cloudStorageService = {
   /**
    * Sync from Firestore or subscribe in real time
    */
   subscribeToFichas(callback: (fichas: FichaTCC[]) => void): Unsubscribe {
-    const q = query(collection(db, FICHAS_COLLECTION), orderBy('ultimaAtualizacao', 'desc'));
+    const colRef = collection(db, FICHAS_COLLECTION);
     return onSnapshot(
-      q,
+      colRef,
       (snapshot) => {
         const remoteFichas: FichaTCC[] = [];
         snapshot.forEach((docSnap) => {
           remoteFichas.push({ ...(docSnap.data() as FichaTCC), id: docSnap.id });
+        });
+
+        remoteFichas.sort((a, b) => {
+          const tA = new Date(a.ultimaAtualizacao || a.dataCriacao || 0).getTime();
+          const tB = new Date(b.ultimaAtualizacao || b.dataCriacao || 0).getTime();
+          return tB - tA;
         });
 
         // Also update local cache for offline/fast load
@@ -50,14 +77,19 @@ export const cloudStorageService = {
    */
   async getFichas(): Promise<FichaTCC[]> {
     try {
-      const q = query(collection(db, FICHAS_COLLECTION), orderBy('ultimaAtualizacao', 'desc'));
-      const snapshot = await getDocs(q);
+      const colRef = collection(db, FICHAS_COLLECTION);
+      const snapshot = await getDocs(colRef);
       const remoteFichas: FichaTCC[] = [];
       snapshot.forEach((docSnap) => {
         remoteFichas.push({ ...(docSnap.data() as FichaTCC), id: docSnap.id });
       });
 
       if (remoteFichas.length > 0) {
+        remoteFichas.sort((a, b) => {
+          const tA = new Date(a.ultimaAtualizacao || a.dataCriacao || 0).getTime();
+          const tB = new Date(b.ultimaAtualizacao || b.dataCriacao || 0).getTime();
+          return tB - tA;
+        });
         localStorage.setItem('pm_faatesp_fichas', JSON.stringify(remoteFichas));
         return remoteFichas;
       }
@@ -74,11 +106,13 @@ export const cloudStorageService = {
   async saveFicha(ficha: FichaTCC): Promise<void> {
     storageService.saveFicha(ficha); // update local instantly
     try {
-      const fichaDocRef = doc(db, FICHAS_COLLECTION, ficha.id);
-      const dataToSave = {
+      const fichaId = ficha.id || `ficha-${Date.now()}`;
+      const fichaDocRef = doc(db, FICHAS_COLLECTION, fichaId);
+      const dataToSave = sanitizeForFirestore({
         ...ficha,
+        id: fichaId,
         ultimaAtualizacao: new Date().toISOString()
-      };
+      });
       await setDoc(fichaDocRef, dataToSave, { merge: true });
     } catch (e) {
       console.error('Error saving ficha to Firestore:', e);

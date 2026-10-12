@@ -115,13 +115,15 @@ export function buildNativeJsPdfBlob(ficha: FichaTCC): Blob {
     pdf.text('FAATESP - FACULDADE ÁLVARES DE AZEVEDO', 105, 20, { align: 'center' });
   }
 
-  // 2. Dark Navy Banner "FICHA DE ACOMPANHAMENTO DE TCC"
+  // 2. Official Header Banner "FICHA DE ACOMPANHAMENTO DE TCC" - Clean White Background
   let currentY = 32;
-  pdf.setFillColor(7, 21, 38); // #071526
-  pdf.rect(marginX, currentY, contentWidth, 7.5, 'F');
+  pdf.setFillColor(255, 255, 255); // 100% White background
+  pdf.setDrawColor(15, 23, 42); // #0f172a
+  pdf.setLineWidth(0.4);
+  pdf.rect(marginX, currentY, contentWidth, 7.5, 'FD');
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(10.5);
-  pdf.setTextColor(255, 255, 255);
+  pdf.setTextColor(15, 23, 42);
   pdf.text('FICHA DE ACOMPANHAMENTO DE TCC', 105, currentY + 5.2, { align: 'center' });
 
   currentY += 10;
@@ -148,16 +150,19 @@ export function buildNativeJsPdfBlob(ficha: FichaTCC): Blob {
   pdf.setTextColor(15, 23, 42); // #0f172a
   pdf.text(ficha.nomeAluno || 'Não informado', marginX + 2, currentY + 7.5);
 
+  pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(7);
-  pdf.setTextColor(0, 102, 204); // #0066cc
+  pdf.setTextColor(100, 116, 139);
   pdf.text('SEMESTRE / ANO:', col2X + 2, currentY + 3.5);
   pdf.setFontSize(8.5);
+  pdf.setTextColor(15, 23, 42);
   pdf.text(ficha.semestre || '7º Semestre 2026/2', col2X + 2, currentY + 7.5);
 
   currentY += row1H;
 
   // Row 2: Curso & Professor Orientador (Height: 9.5 mm)
   const row2H = 9.5;
+  pdf.setFillColor(255, 255, 255);
   pdf.rect(marginX, currentY, col1Width, row2H, 'FD');
   pdf.rect(col2X, currentY, col2Width, row2H, 'FD');
 
@@ -183,6 +188,7 @@ export function buildNativeJsPdfBlob(ficha: FichaTCC): Blob {
 
   // Row 3: Título do Trabalho & Nota Final (Height: 12.5 mm)
   const row3H = 12.5;
+  pdf.setFillColor(255, 255, 255);
   pdf.rect(marginX, currentY, col1Width, row3H, 'FD');
   pdf.rect(col2X, currentY, col2Width, row3H, 'FD');
 
@@ -199,22 +205,24 @@ export function buildNativeJsPdfBlob(ficha: FichaTCC): Blob {
 
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(7);
-  pdf.setTextColor(71, 85, 105);
+  pdf.setTextColor(100, 116, 139);
   pdf.text('NOTA FINAL:', col2X + (col2Width / 2), currentY + 4, { align: 'center' });
   pdf.setFontSize(10.5);
-  pdf.setTextColor(0, 102, 204);
+  pdf.setTextColor(15, 23, 42);
   pdf.text(ficha.nota ? `${ficha.nota} / 10` : '___ / 10', col2X + (col2Width / 2), currentY + 9.5, { align: 'center' });
 
   currentY += row3H + 3.5;
 
-  // Helper function to render numbered sections with exact DOCX style
+  // Helper function to render numbered sections with clean white background and dark text
   const renderNumberedSection = (title: string, content: string, maxLines = 5) => {
-    // Header Bar
-    pdf.setFillColor(7, 21, 38);
-    pdf.rect(marginX, currentY, contentWidth, 5.2, 'F');
+    // Header Bar - White background with dark border and text
+    pdf.setFillColor(255, 255, 255);
+    pdf.setDrawColor(15, 23, 42);
+    pdf.setLineWidth(0.35);
+    pdf.rect(marginX, currentY, contentWidth, 5.2, 'FD');
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(7.8);
-    pdf.setTextColor(255, 255, 255);
+    pdf.setTextColor(15, 23, 42);
     pdf.text(title, marginX + 2.5, currentY + 3.7);
     currentY += 5.2;
 
@@ -244,12 +252,14 @@ export function buildNativeJsPdfBlob(ficha: FichaTCC): Blob {
   // 3) Referências Bibliográficas
   renderNumberedSection('3) REFERÊNCIAS BIBLIOGRÁFICAS', ficha.bibliografia || '', 5);
 
-  // 5. Orientations Section (2 Columns, 50% / 50% exactly like DOCX)
-  pdf.setFillColor(7, 21, 38);
-  pdf.rect(marginX, currentY, contentWidth, 5.2, 'F');
+  // 5. Orientations Section (2 Columns, 50% / 50% exactly like DOCX) - Clean White Background
+  pdf.setFillColor(255, 255, 255);
+  pdf.setDrawColor(15, 23, 42);
+  pdf.setLineWidth(0.35);
+  pdf.rect(marginX, currentY, contentWidth, 5.2, 'FD');
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(7.8);
-  pdf.setTextColor(255, 255, 255);
+  pdf.setTextColor(15, 23, 42);
   pdf.text('REGISTRO DE ORIENTAÇÕES PRESENCIAIS (MÍNIMO DE 2 ORIENTAÇÕES)', marginX + 2.5, currentY + 3.7);
   currentY += 5.2;
 
@@ -261,7 +271,8 @@ export function buildNativeJsPdfBlob(ficha: FichaTCC): Blob {
 
   const renderOriCol = (colX: number, title: string, ori?: any) => {
     pdf.setFillColor(255, 255, 255);
-    pdf.setDrawColor(7, 21, 38);
+    pdf.setDrawColor(148, 163, 184);
+    pdf.setLineWidth(0.3);
     pdf.rect(colX, currentY, oriColWidth, oriBoxHeight, 'FD');
 
     // Title
@@ -289,20 +300,20 @@ export function buildNativeJsPdfBlob(ficha: FichaTCC): Blob {
     const badgeH = 4.5;
 
     if (isVal) {
-      pdf.setFillColor(236, 253, 245); // #ecfdf5
-      pdf.setDrawColor(167, 243, 208); // #a7f3d0
+      pdf.setFillColor(240, 253, 244); // #f0fdf4
+      pdf.setDrawColor(187, 247, 208); // #bbf7d0
       pdf.rect(colX + 3, badgeY, badgeW, badgeH, 'FD');
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(6.8);
-      pdf.setTextColor(6, 95, 70); // #065f46
+      pdf.setTextColor(21, 128, 61); // #15803d
       pdf.text('✓ VALIDADO PELO ORIENTADOR', colX + (oriColWidth / 2), badgeY + 3.2, { align: 'center' });
     } else {
-      pdf.setFillColor(255, 251, 235); // #fffbeb
-      pdf.setDrawColor(253, 230, 138); // #fde68a
+      pdf.setFillColor(254, 252, 232); // #fefce8
+      pdf.setDrawColor(254, 240, 138); // #fef08a
       pdf.rect(colX + 3, badgeY, badgeW, badgeH, 'FD');
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(6.8);
-      pdf.setTextColor(146, 64, 14); // #92400e
+      pdf.setTextColor(161, 98, 7); // #a16207
       pdf.text('PENDENTE DE VALIDAÇÃO', colX + (oriColWidth / 2), badgeY + 3.2, { align: 'center' });
     }
   };
@@ -312,13 +323,15 @@ export function buildNativeJsPdfBlob(ficha: FichaTCC): Blob {
 
   currentY += oriBoxHeight + 2.5;
 
-  // 6. Parecer do Professor Orientador (if present)
+  // 6. Parecer do Professor Orientador (if present) - Clean White Background
   if (ficha.parecerOrientador?.trim()) {
-    pdf.setFillColor(7, 21, 38);
-    pdf.rect(marginX, currentY, contentWidth, 5.2, 'F');
+    pdf.setFillColor(255, 255, 255);
+    pdf.setDrawColor(15, 23, 42);
+    pdf.setLineWidth(0.35);
+    pdf.rect(marginX, currentY, contentWidth, 5.2, 'FD');
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(7.8);
-    pdf.setTextColor(255, 255, 255);
+    pdf.setTextColor(15, 23, 42);
     pdf.text('PARECER DO PROFESSOR ORIENTADOR', marginX + 2.5, currentY + 3.7);
     currentY += 5.2;
 
@@ -333,7 +346,6 @@ export function buildNativeJsPdfBlob(ficha: FichaTCC): Blob {
     pdf.rect(marginX, currentY, contentWidth, pBoxH, 'FD');
     pdf.text(pLines.slice(0, 3), marginX + 3, currentY + 3.8);
 
-    currentY += pBoxH + 2.5;
   }
 
   // 7. Signature Block (Right aligned, exactly like DOCX & Preview)
@@ -473,6 +485,11 @@ export async function generatePdfFile(elementId: string, customFileName?: string
   const defaultFileName = fichaFallback ? getFichaExportFilename(fichaFallback, 'pdf') : 'FICHA DE TCC.pdf';
   const fileName = customFileName ? (customFileName.endsWith('.pdf') ? customFileName : `${customFileName}.pdf`) : defaultFileName;
 
+  if (fichaFallback) {
+    const blob = buildNativeJsPdfBlob(fichaFallback);
+    return new File([blob], fileName, { type: 'application/pdf' });
+  }
+
   try {
     const element = findTargetElement(elementId);
     const canvas = await renderElementToCanvas(element);
@@ -492,16 +509,21 @@ export async function generatePdfFile(elementId: string, customFileName?: string
     const blob = pdf.output('blob');
     return new File([blob], fileName, { type: 'application/pdf' });
   } catch (err) {
-    console.warn('Fallback para gerador nativo PDF File devido a:', err);
-    if (fichaFallback) {
-      const blob = buildNativeJsPdfBlob(fichaFallback);
-      return new File([blob], fileName, { type: 'application/pdf' });
-    }
+    console.error('Falha ao gerar arquivo PDF:', err);
     return null;
   }
 }
 
 export async function generatePdfBase64(elementId: string, _customFileName?: string, fichaFallback?: FichaTCC): Promise<string> {
+  if (fichaFallback) {
+    const blob = buildNativeJsPdfBlob(fichaFallback);
+    return new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(blob);
+    });
+  }
+
   try {
     const element = findTargetElement(elementId);
     const canvas = await renderElementToCanvas(element);
@@ -520,15 +542,7 @@ export async function generatePdfBase64(elementId: string, _customFileName?: str
     pdf.addImage(imgData, 'JPEG', xOffset, yOffset, renderWidth, renderHeight);
     return pdf.output('datauristring');
   } catch (err) {
-    console.warn('Fallback para gerador nativo PDF Base64 devido a:', err);
-    if (fichaFallback) {
-      const blob = buildNativeJsPdfBlob(fichaFallback);
-      return new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(blob);
-      });
-    }
+    console.error('Falha ao gerar PDF Base64:', err);
     throw err;
   }
 }
