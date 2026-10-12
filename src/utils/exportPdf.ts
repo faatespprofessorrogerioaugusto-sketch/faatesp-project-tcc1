@@ -2,6 +2,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { FichaTCC } from '../types';
 import { OFFICIAL_FAATESP_LOGO, getSignatureForProfessor } from './signatures';
+import { storageService } from '../services/storage';
 import { getFichaExportFilename } from './filenameHelper';
 
 /**
@@ -99,201 +100,278 @@ function findTargetElement(elementId?: string): HTMLElement {
  */
 export function buildNativeJsPdfBlob(ficha: FichaTCC): Blob {
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageWidth = 210;
+  const marginX = 13.5;
+  const contentWidth = pageWidth - (marginX * 2); // 183 mm
 
-  // 1. Header with Official FAATESP Logo Image (Enlarged, centered, and positioned higher with breathing room)
+  // 1. Header with Official FAATESP Logo Image (Centered)
   try {
-    const logoData = ficha.logoUrl || OFFICIAL_FAATESP_LOGO;
-    pdf.addImage(logoData, 'PNG', 36, 18, 138, 24);
-  } catch (e) {
+    const logoData = storageService.getInstitutionalLogo() || ficha.logoUrl || OFFICIAL_FAATESP_LOGO;
+    pdf.addImage(logoData, 'PNG', 45, 9, 120, 20);
+  } catch {
     pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(12);
-    pdf.text('FAATESP - FACULDADE ÁLVARES DE AZEVEDO', 105, 28, { align: 'center' });
+    pdf.setFontSize(14);
+    pdf.setTextColor(0, 51, 102);
+    pdf.text('FAATESP - FACULDADE ÁLVARES DE AZEVEDO', 105, 20, { align: 'center' });
   }
 
+  // 2. Dark Navy Banner "FICHA DE ACOMPANHAMENTO DE TCC"
+  let currentY = 32;
+  pdf.setFillColor(7, 21, 38); // #071526
+  pdf.rect(marginX, currentY, contentWidth, 7.5, 'F');
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(10);
-  pdf.text('FICHA DE ACOMPANHAMENTO DE TCC', 105, 48, { align: 'center' });
-  pdf.setLineWidth(0.4);
-  pdf.line(15, 51, 195, 51);
+  pdf.setFontSize(10.5);
+  pdf.setTextColor(255, 255, 255);
+  pdf.text('FICHA DE ACOMPANHAMENTO DE TCC', 105, currentY + 5.2, { align: 'center' });
 
-  // Student Details Box
+  currentY += 10;
+
+  // 3. Academic Identification Table (3 Rows, 72% / 28% exactly like DOCX & Preview)
+  const col1Width = contentWidth * 0.72; // ~131.76 mm
+  const col2Width = contentWidth * 0.28; // ~51.24 mm
+  const col2X = marginX + col1Width;
+
+  pdf.setDrawColor(148, 163, 184); // #94a3b8
+  pdf.setLineWidth(0.3);
+
+  // Row 1: Nome do Aluno & Semestre / Ano (Height: 9.5 mm)
+  const row1H = 9.5;
+  pdf.setFillColor(255, 255, 255);
+  pdf.rect(marginX, currentY, col1Width, row1H, 'FD');
+  pdf.rect(col2X, currentY, col2Width, row1H, 'FD');
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(7);
+  pdf.setTextColor(100, 116, 139); // #64748b
+  pdf.text('NOME DO ALUNO(A):', marginX + 2, currentY + 3.5);
   pdf.setFontSize(8.5);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('NOME DO ALUNO(A):', 15, 57);
-  pdf.setFont('helvetica', 'normal');
-  pdf.text(ficha.nomeAluno || 'Não informado', 55, 57);
+  pdf.setTextColor(15, 23, 42); // #0f172a
+  pdf.text(ficha.nomeAluno || 'Não informado', marginX + 2, currentY + 7.5);
 
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('CURSO:', 15, 63);
-  pdf.setFont('helvetica', 'normal');
-  pdf.text(ficha.curso || 'Não informado', 55, 63);
-
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('SEMESTRE:', 130, 63);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(0, 75, 153);
-  pdf.text(ficha.semestre || '7º Semestre 2026/2', 155, 63);
-  pdf.setTextColor(0, 0, 0);
-
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('ORIENTADOR:', 15, 69);
-  pdf.setFont('helvetica', 'normal');
-  pdf.text(ficha.professorOrientador || 'Não informado', 55, 69);
-
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('TÍTULO DO TCC:', 15, 75);
-  pdf.setFont('helvetica', 'normal');
-  const splitTitle = pdf.splitTextToSize(ficha.tituloTrabalho || 'Não informado', 135);
-  pdf.text(splitTitle, 55, 75);
-
-  let currentY = 75 + (splitTitle.length * 4.5) + 3;
-
-  // Grade Box
-  pdf.setFillColor(245, 247, 250);
-  pdf.rect(15, currentY, 180, 10, 'F');
-  pdf.rect(15, currentY, 180, 10, 'S');
-
-  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(7);
+  pdf.setTextColor(0, 102, 204); // #0066cc
+  pdf.text('SEMESTRE / ANO:', col2X + 2, currentY + 3.5);
   pdf.setFontSize(8.5);
-  pdf.text('NOTA FINAL ATRIBUÍDA:', 20, currentY + 6.5);
-  pdf.setFontSize(9.5);
-  pdf.setTextColor(0, 75, 153);
-  pdf.text(ficha.nota ? `${ficha.nota} / 10.0` : 'Pendente de avaliação', 65, currentY + 6.5);
-  pdf.setTextColor(0, 0, 0);
+  pdf.text(ficha.semestre || '7º Semestre 2026/2', col2X + 2, currentY + 7.5);
 
-  currentY += 14;
+  currentY += row1H;
 
-  // 1) Situação-Problema (with inset horizontal margins)
-  pdf.setFillColor(11, 25, 44);
-  pdf.rect(15, currentY, 180, 5.5, 'F');
+  // Row 2: Curso & Professor Orientador (Height: 9.5 mm)
+  const row2H = 9.5;
+  pdf.rect(marginX, currentY, col1Width, row2H, 'FD');
+  pdf.rect(col2X, currentY, col2Width, row2H, 'FD');
+
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(8);
-  pdf.setTextColor(255, 255, 255);
-  pdf.text('1) SITUAÇÃO-PROBLEMA', 18, currentY + 3.8);
-  pdf.setTextColor(0, 0, 0);
-  currentY += 6.5;
+  pdf.setFontSize(7);
+  pdf.setTextColor(100, 116, 139);
+  pdf.text('CURSO:', marginX + 2, currentY + 3.5);
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(8);
-  const splitProblem = pdf.splitTextToSize(ficha.situacaoProblema || 'Não informada.', 174);
-  pdf.text(splitProblem.slice(0, 7), 18, currentY);
-  currentY += Math.min(splitProblem.length, 7) * 3.8 + 4;
+  pdf.setTextColor(15, 23, 42);
+  pdf.text(ficha.curso || 'Não informado', marginX + 2, currentY + 7.5);
 
-  // 2) Hipótese (with inset horizontal margins)
-  pdf.setFillColor(11, 25, 44);
-  pdf.rect(15, currentY, 180, 5.5, 'F');
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(8);
-  pdf.setTextColor(255, 255, 255);
-  pdf.text('2) HIPÓTESE', 18, currentY + 3.8);
-  pdf.setTextColor(0, 0, 0);
-  currentY += 6.5;
+  pdf.setFontSize(7);
+  pdf.setTextColor(100, 116, 139);
+  pdf.text('PROFESSOR(A) ORIENTADOR(A):', col2X + 2, currentY + 3.5);
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(8);
-  const splitHypo = pdf.splitTextToSize(ficha.hipotese || 'Não informada.', 174);
-  pdf.text(splitHypo.slice(0, 5), 18, currentY);
-  currentY += Math.min(splitHypo.length, 5) * 3.8 + 4;
+  pdf.setTextColor(15, 23, 42);
+  pdf.text(ficha.professorOrientador || 'Profa. Marinês Borba', col2X + 2, currentY + 7.5);
 
-  // 3) Bibliografia (with inset horizontal margins)
-  pdf.setFillColor(11, 25, 44);
-  pdf.rect(15, currentY, 180, 5.5, 'F');
+  currentY += row2H;
+
+  // Row 3: Título do Trabalho & Nota Final (Height: 12.5 mm)
+  const row3H = 12.5;
+  pdf.rect(marginX, currentY, col1Width, row3H, 'FD');
+  pdf.rect(col2X, currentY, col2Width, row3H, 'FD');
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(7);
+  pdf.setTextColor(100, 116, 139);
+  pdf.text('TÍTULO DO TRABALHO DE CONCLUSÃO DE CURSO (TCC):', marginX + 2, currentY + 3.5);
+
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(8);
-  pdf.setTextColor(255, 255, 255);
-  pdf.text('3) REFERÊNCIAS BIBLIOGRÁFICAS', 18, currentY + 3.8);
-  pdf.setTextColor(0, 0, 0);
-  currentY += 6.5;
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(7.5);
-  const rawBibLines = (ficha.bibliografia || 'Não informada.').split(/\r?\n+/).filter(l => l.trim().length > 0);
-  for (let i = 0; i < rawBibLines.length; i++) {
-    const splitLines = pdf.splitTextToSize(rawBibLines[i].trim(), 174);
-    pdf.text(splitLines, 18, currentY);
-    currentY += splitLines.length * 3.4 + (i === rawBibLines.length - 1 ? 3 : 2.5);
-  }
+  pdf.setTextColor(15, 23, 42);
+  const splitTitle = pdf.splitTextToSize(ficha.tituloTrabalho || 'Título não preenchido', col1Width - 4);
+  pdf.text(splitTitle.slice(0, 2), marginX + 2, currentY + 7.5);
 
-  // Side-by-side Orientations
-  pdf.setFillColor(11, 25, 44);
-  pdf.rect(15, currentY, 180, 5.5, 'F');
   pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(8);
+  pdf.setFontSize(7);
+  pdf.setTextColor(71, 85, 105);
+  pdf.text('NOTA FINAL:', col2X + (col2Width / 2), currentY + 4, { align: 'center' });
+  pdf.setFontSize(10.5);
+  pdf.setTextColor(0, 102, 204);
+  pdf.text(ficha.nota ? `${ficha.nota} / 10` : '___ / 10', col2X + (col2Width / 2), currentY + 9.5, { align: 'center' });
+
+  currentY += row3H + 3.5;
+
+  // Helper function to render numbered sections with exact DOCX style
+  const renderNumberedSection = (title: string, content: string, maxLines = 5) => {
+    // Header Bar
+    pdf.setFillColor(7, 21, 38);
+    pdf.rect(marginX, currentY, contentWidth, 5.2, 'F');
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(7.8);
+    pdf.setTextColor(255, 255, 255);
+    pdf.text(title, marginX + 2.5, currentY + 3.7);
+    currentY += 5.2;
+
+    // Content Box
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(7.6);
+    pdf.setTextColor(15, 23, 42);
+    const lines = pdf.splitTextToSize(content || 'Nenhum conteúdo informado.', contentWidth - 5);
+    const displayLines = lines.slice(0, maxLines);
+    const boxHeight = Math.max(10, (displayLines.length * 3.4) + 4);
+
+    pdf.setFillColor(255, 255, 255);
+    pdf.setDrawColor(148, 163, 184);
+    pdf.rect(marginX, currentY, contentWidth, boxHeight, 'FD');
+    pdf.text(displayLines, marginX + 2.5, currentY + 4);
+
+    currentY += boxHeight + 2.5;
+  };
+
+  // 4. Numbered Sections:
+  // 1) Situação-Problema
+  renderNumberedSection('1) SITUAÇÃO-PROBLEMA', ficha.situacaoProblema || '', 5);
+
+  // 2) Hipótese
+  renderNumberedSection('2) HIPÓTESE', ficha.hipotese || '', 4);
+
+  // 3) Referências Bibliográficas
+  renderNumberedSection('3) REFERÊNCIAS BIBLIOGRÁFICAS', ficha.bibliografia || '', 5);
+
+  // 5. Orientations Section (2 Columns, 50% / 50% exactly like DOCX)
+  pdf.setFillColor(7, 21, 38);
+  pdf.rect(marginX, currentY, contentWidth, 5.2, 'F');
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(7.8);
   pdf.setTextColor(255, 255, 255);
-  pdf.text('REGISTRO DE ORIENTAÇÕES PRESENCIAIS (MÍNIMO DE 2 ORIENTAÇÕES)', 17, currentY + 3.8);
-  pdf.setTextColor(0, 0, 0);
-  currentY += 7.5;
+  pdf.text('REGISTRO DE ORIENTAÇÕES PRESENCIAIS (MÍNIMO DE 2 ORIENTAÇÕES)', marginX + 2.5, currentY + 3.7);
+  currentY += 5.2;
 
   const ori1 = ficha.orientacoes?.[0];
   const ori2 = ficha.orientacoes?.[1];
+  const oriColWidth = contentWidth / 2; // 91.5 mm
+  const oriCol2X = marginX + oriColWidth;
+  const oriBoxHeight = 25;
 
-  // Box 1 (Left column)
-  pdf.rect(15, currentY, 87, 28);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(8);
-  pdf.text('1ª Orientação Presencial', 18, currentY + 5);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(7.5);
-  pdf.text(`Data: ${ori1?.data || '—'}  Horário: ${ori1?.horario || '—'}`, 18, currentY + 10);
-  const obs1 = pdf.splitTextToSize(ori1?.observacao || 'Sem observações registradas.', 81);
-  pdf.text(obs1.slice(0, 2), 18, currentY + 15);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(7);
-  pdf.text(ori1?.confirmado ? '✓ VALIDADO PELO ORIENTADOR' : 'PENDENTE DE VALIDAÇÃO', 18, currentY + 25);
+  const renderOriCol = (colX: number, title: string, ori?: any) => {
+    pdf.setFillColor(255, 255, 255);
+    pdf.setDrawColor(7, 21, 38);
+    pdf.rect(colX, currentY, oriColWidth, oriBoxHeight, 'FD');
 
-  // Box 2 (Right column)
-  pdf.rect(108, currentY, 87, 28);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(8);
-  pdf.text('2ª Orientação Presencial', 111, currentY + 5);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(7.5);
-  pdf.text(`Data: ${ori2?.data || '—'}  Horário: ${ori2?.horario || '—'}`, 111, currentY + 10);
-  const obs2 = pdf.splitTextToSize(ori2?.observacao || 'Sem observações registradas.', 81);
-  pdf.text(obs2.slice(0, 2), 111, currentY + 15);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(7);
-  pdf.text(ori2?.confirmado ? '✓ VALIDADO PELO ORIENTADOR' : 'PENDENTE DE VALIDAÇÃO', 111, currentY + 25);
-
-  currentY += 32;
-
-  // Parecer
-  if (ficha.parecerOrientador) {
+    // Title
     pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(8);
-    pdf.text('PARECER DO PROFESSOR ORIENTADOR:', 15, currentY);
-    currentY += 3.5;
+    pdf.setFontSize(7.8);
+    pdf.setTextColor(15, 23, 42);
+    pdf.text(title, colX + 3, currentY + 4);
+
+    // Date & Time
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(7);
+    pdf.setTextColor(100, 116, 139);
+    pdf.text(`Data: ${ori?.data || '—'}  |  Horário: ${ori?.horario || '—'}`, colX + 3, currentY + 8);
+
+    // Observação
+    pdf.setFontSize(7.2);
+    pdf.setTextColor(15, 23, 42);
+    const obsLines = pdf.splitTextToSize(ori?.observacao || 'Sem observações registradas.', oriColWidth - 6);
+    pdf.text(obsLines.slice(0, 2), colX + 3, currentY + 12.5);
+
+    // Status Badge
+    const isVal = Boolean(ori?.confirmado);
+    const badgeY = currentY + 18.5;
+    const badgeW = oriColWidth - 6;
+    const badgeH = 4.5;
+
+    if (isVal) {
+      pdf.setFillColor(236, 253, 245); // #ecfdf5
+      pdf.setDrawColor(167, 243, 208); // #a7f3d0
+      pdf.rect(colX + 3, badgeY, badgeW, badgeH, 'FD');
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(6.8);
+      pdf.setTextColor(6, 95, 70); // #065f46
+      pdf.text('✓ VALIDADO PELO ORIENTADOR', colX + (oriColWidth / 2), badgeY + 3.2, { align: 'center' });
+    } else {
+      pdf.setFillColor(255, 251, 235); // #fffbeb
+      pdf.setDrawColor(253, 230, 138); // #fde68a
+      pdf.rect(colX + 3, badgeY, badgeW, badgeH, 'FD');
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(6.8);
+      pdf.setTextColor(146, 64, 14); // #92400e
+      pdf.text('PENDENTE DE VALIDAÇÃO', colX + (oriColWidth / 2), badgeY + 3.2, { align: 'center' });
+    }
+  };
+
+  renderOriCol(marginX, '1ª Orientação Presencial', ori1);
+  renderOriCol(oriCol2X, '2ª Orientação Presencial', ori2);
+
+  currentY += oriBoxHeight + 2.5;
+
+  // 6. Parecer do Professor Orientador (if present)
+  if (ficha.parecerOrientador?.trim()) {
+    pdf.setFillColor(7, 21, 38);
+    pdf.rect(marginX, currentY, contentWidth, 5.2, 'F');
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(7.8);
+    pdf.setTextColor(255, 255, 255);
+    pdf.text('PARECER DO PROFESSOR ORIENTADOR', marginX + 2.5, currentY + 3.7);
+    currentY += 5.2;
+
     pdf.setFont('helvetica', 'italic');
-    pdf.setFontSize(7.5);
-    const splitParecer = pdf.splitTextToSize(`"${ficha.parecerOrientador}"`, 180);
-    pdf.text(splitParecer.slice(0, 2), 15, currentY);
-    currentY += 10;
+    pdf.setFontSize(7.4);
+    pdf.setTextColor(15, 23, 42);
+    const pLines = pdf.splitTextToSize(`"${ficha.parecerOrientador.trim()}"`, contentWidth - 6);
+    const pBoxH = Math.max(9, (pLines.slice(0, 3).length * 3.4) + 3.5);
+
+    pdf.setFillColor(255, 255, 255);
+    pdf.setDrawColor(148, 163, 184);
+    pdf.rect(marginX, currentY, contentWidth, pBoxH, 'FD');
+    pdf.text(pLines.slice(0, 3), marginX + 3, currentY + 3.8);
+
+    currentY += pBoxH + 2.5;
   }
 
-  // Signature Block with REAL SIGNATURE IMAGE on the right
-  const sigY = Math.max(currentY, 256);
-  const sigImage = ficha.assinaturaUrl || getSignatureForProfessor(ficha.professorOrientador);
-  if (sigImage) {
+  // 7. Signature Block (Right aligned, exactly like DOCX & Preview)
+  const sigY = Math.max(currentY + 12, 258);
+  const orientadorSig = ficha.assinaturaUrl || getSignatureForProfessor(ficha.professorOrientador);
+
+  if (orientadorSig) {
     try {
-      pdf.addImage(sigImage, 'PNG', 147, sigY - 16, 16, 15);
+      pdf.addImage(orientadorSig, 'PNG', 151, sigY - 13, 24, 12);
     } catch {
-      // Ignore image render fallback
+      // ignore
     }
   }
 
-  pdf.line(125, sigY, 185, sigY);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(8);
-  pdf.text(ficha.professorOrientador || 'Assinatura do Professor Orientador', 155, sigY + 4, { align: 'center' });
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(7.5);
-  pdf.text('Professor(a) Orientador(a)', 155, sigY + 8, { align: 'center' });
+  pdf.setDrawColor(7, 21, 38);
+  pdf.setLineWidth(0.4);
+  pdf.line(134, sigY, 192, sigY);
 
-  // Footer: Date and Project Attribution
-  pdf.setFontSize(7.5);
-  pdf.setTextColor(100, 100, 100);
-  pdf.text(`São Paulo, ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}`, 105, 282, { align: 'center' });
   pdf.setFont('helvetica', 'bold');
-  pdf.setTextColor(60, 60, 60);
-  const projectLabel = 'Project Maket by Mister Roger 2026';
-  pdf.text(projectLabel, 105, 287, { align: 'center' });
+  pdf.setFontSize(7.8);
+  pdf.setTextColor(15, 23, 42);
+  pdf.text(ficha.professorOrientador || 'Assinatura do Professor Orientador', 163, sigY + 3.5, { align: 'center' });
+
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(7);
+  pdf.setTextColor(100, 116, 139);
+  pdf.text('Professor(a) Orientador(a)', 163, sigY + 7, { align: 'center' });
+
+  // 8. Footer: Date & Project attribution
+  pdf.setFontSize(7.2);
+  pdf.setFont('helvetica', 'italic');
+  pdf.setTextColor(100, 116, 139);
+  pdf.text(`São Paulo, ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}`, 105, 283, { align: 'center' });
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(7.2);
+  pdf.setTextColor(15, 23, 42);
+  pdf.text('Project Maket by Mister Roger 2026', 105, 287.5, { align: 'center' });
 
   return pdf.output('blob');
 }
