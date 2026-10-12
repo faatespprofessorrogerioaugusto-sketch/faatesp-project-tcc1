@@ -372,8 +372,8 @@ export const FichaForm: React.FC<FichaFormProps> = ({
         </div>
       )}
 
-      {/* Teacher Feedback / Parecer Banner in Editor */}
-      {formData.parecerOrientador?.trim() && (
+      {/* Teacher Feedback / Parecer Banner in Editor (some assim que os ajustes são salvos) */}
+      {formData.parecerOrientador?.trim() && !formData.parecerAtendido && (
         <div className="bg-gradient-to-r from-amber-950/90 via-slate-900 to-amber-950/90 p-5 rounded-2xl border-2 border-amber-400 shadow-xl space-y-3 animate-fadeIn">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center space-x-2.5">
