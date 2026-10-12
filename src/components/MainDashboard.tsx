@@ -19,7 +19,8 @@ import {
   FileType,
   FileText,
   Bell,
-  ArrowRight
+  ArrowRight,
+  ShieldCheck
 } from 'lucide-react';
 import { generatePdf } from '../utils/exportPdf';
 import { generateDocx } from '../utils/exportDocx';
@@ -48,6 +49,19 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
   const hasProblem = Boolean(activeFicha.situacaoProblema?.trim());
   const hasHypothesis = Boolean(activeFicha.hipotese?.trim());
   const hasBiblio = Boolean(activeFicha.bibliografia?.trim());
+
+  const isAprovada = activeFicha.status === 'aprovado' || activeFicha.status === 'concluido';
+  const hasPendingParecer = Boolean(activeFicha.parecerOrientador?.trim()) && !activeFicha.parecerAtendido;
+
+  const restricoes: string[] = [];
+  if (!hasProblem) restricoes.push('Situação-Problema não preenchida');
+  if (!hasHypothesis) restricoes.push('Hipótese de pesquisa não formulada');
+  if (!hasBiblio) restricoes.push('Referências Bibliográficas ausentes');
+  if (!meetsMinOrientations) restricoes.push(`Mínimo de 2 reuniões de orientação não atingido (${orientacoesCount}/2)`);
+  if (hasPendingParecer) restricoes.push('Parecer com correções do orientador pendente de atendimento');
+  if (restricoes.length === 0 && !isAprovada) {
+    restricoes.push('Aguardando avaliação e parecer de aprovação formal do orientador');
+  }
 
   const handleDirectExportPdf = async () => {
     try {
@@ -142,73 +156,189 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
         </div>
       )}
 
-      {/* Pulsing Card: Notificação de Parecer do Orientador para o Aluno (desaparece quando ajustado e salvo) */}
-      {user.role === 'aluno' && activeFicha.parecerOrientador?.trim() && !activeFicha.parecerAtendido && (
-        <div
-          onClick={() => onNavigate('editar')}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              onNavigate('editar');
-            }
-          }}
-          className="group relative cursor-pointer overflow-hidden rounded-2xl border-2 border-amber-400 bg-gradient-to-r from-amber-950/90 via-slate-900 to-amber-950/90 p-5 sm:p-6 shadow-[0_0_30px_rgba(251,191,36,0.35)] transition-all duration-300 hover:scale-[1.01] hover:border-amber-300 hover:shadow-[0_0_40px_rgba(251,191,36,0.6)] animate-pulse"
-        >
-          {/* Animated decorative beacon in corner */}
-          <div className="absolute top-3 right-3 flex items-center space-x-1.5 bg-amber-500/20 px-2.5 py-1 rounded-full border border-amber-400/40">
+      {/* CARD 1: Ficha do Aluno APROVADA - Notificação com Botão de Exportar em PDF */}
+      {user.role === 'aluno' && isAprovada && (
+        <div className="relative overflow-hidden rounded-2xl border-2 border-emerald-500/80 bg-gradient-to-r from-emerald-950/90 via-slate-900 to-emerald-950/90 p-5 sm:p-6 shadow-[0_0_35px_rgba(16,185,129,0.3)] transition-all duration-300 hover:border-emerald-400 hover:shadow-[0_0_45px_rgba(16,185,129,0.45)]">
+          {/* Beacon superior de homologação */}
+          <div className="absolute top-3 right-3 flex items-center space-x-1.5 bg-emerald-500/20 px-3 py-1 rounded-full border border-emerald-400/40">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
+            </span>
+            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300">
+              Aprovada Oficialmente
+            </span>
+          </div>
+
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+            <div className="flex items-start space-x-4">
+              <div className="p-3.5 bg-emerald-500/20 text-emerald-300 border-2 border-emerald-400/60 rounded-2xl shrink-0 shadow-lg">
+                <ShieldCheck className="w-8 h-8 text-emerald-400" />
+              </div>
+
+              <div className="space-y-2 pr-6">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-emerald-300 bg-emerald-950 px-2.5 py-0.5 rounded-full border border-emerald-500/50">
+                    Homologado FAATESP
+                  </span>
+                  {activeFicha.professorOrientador && (
+                    <span className="text-xs text-slate-300">
+                      Orientador: <strong className="text-white">{activeFicha.professorOrientador}</strong>
+                    </span>
+                  )}
+                  {activeFicha.nota && (
+                    <span className="text-xs font-bold bg-emerald-400 text-slate-950 px-2.5 py-0.5 rounded-md">
+                      Nota Oficial: {activeFicha.nota} / 10
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="text-lg sm:text-xl font-black text-white flex items-center space-x-2">
+                  <span>🎉 Parabéns! Sua Ficha de TCC foi Aprovada com Sucesso!</span>
+                </h3>
+
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-2xl">
+                  Seu plano de trabalho e orientações de TCC foram formalmente aprovados pelo orientador. Todas as etapas acadêmicas foram validadas e o documento está pronto para emissão oficial.
+                </p>
+
+                {activeFicha.parecerOrientador?.trim() && (
+                  <div className="bg-black/40 p-3 rounded-xl border border-emerald-500/30 text-xs text-emerald-100/90 italic max-w-2xl">
+                    <strong className="text-emerald-300 not-italic block mb-0.5">Parecer do Orientador:</strong>
+                    "{activeFicha.parecerOrientador}"
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Ações do Card Aprovado */}
+            <div className="flex flex-col sm:flex-row lg:flex-col gap-2.5 shrink-0 pt-2 lg:pt-0">
+              <button
+                type="button"
+                onClick={handleDirectExportPdf}
+                disabled={isExportingPdf}
+                className="inline-flex items-center justify-center space-x-2.5 px-6 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 font-black text-xs sm:text-sm shadow-xl shadow-emerald-500/25 transition-all cursor-pointer disabled:opacity-60"
+              >
+                {isExportingPdf ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-slate-950" />
+                ) : (
+                  <FileType className="w-5 h-5 text-slate-950" />
+                )}
+                <span>{isExportingPdf ? 'Gerando Arquivo PDF...' : 'Exportar Ficha em PDF'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onNavigate('preview')}
+                className="inline-flex items-center justify-center space-x-1.5 px-4 py-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-colors cursor-pointer"
+              >
+                <Eye className="w-4 h-4 text-emerald-400" />
+                <span>Visualizar Folha A4</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CARD 2: Ficha do Aluno NÃO APROVADA / Com Restrições - Notificação com Botão de Editar Ficha */}
+      {user.role === 'aluno' && !isAprovada && (
+        <div className="group relative overflow-hidden rounded-2xl border-2 border-amber-500/80 bg-gradient-to-r from-amber-950/95 via-slate-900 to-amber-950/90 p-5 sm:p-6 shadow-[0_0_30px_rgba(245,158,11,0.25)] transition-all duration-300 hover:border-amber-400 hover:shadow-[0_0_40px_rgba(245,158,11,0.4)]">
+          {/* Badge superior de pendência */}
+          <div className="absolute top-3 right-3 flex items-center space-x-1.5 bg-amber-500/20 px-3 py-1 rounded-full border border-amber-400/40">
             <span className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-400"></span>
             </span>
             <span className="text-[10px] font-black uppercase tracking-wider text-amber-300">
-              Nova Correção
+              {hasPendingParecer ? 'Correções Solicitadas' : 'Pendente de Aprovação'}
             </span>
           </div>
 
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
             <div className="flex items-start space-x-4">
-              <div className="p-3 bg-amber-500/20 text-amber-300 border-2 border-amber-400/60 rounded-2xl shrink-0 shadow-lg">
-                <Bell className="w-7 h-7 text-amber-300 animate-bounce" />
+              <div className="p-3.5 bg-amber-500/20 text-amber-300 border-2 border-amber-400/60 rounded-2xl shrink-0 shadow-lg">
+                <AlertCircle className="w-8 h-8 text-amber-300 animate-pulse" />
               </div>
-              <div className="space-y-1.5 pr-8">
+
+              <div className="space-y-2.5 pr-6">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs font-black uppercase tracking-wider text-amber-300 bg-amber-950 px-2.5 py-0.5 rounded-full border border-amber-500/50">
                     Atenção Aluno
                   </span>
                   {activeFicha.professorOrientador && (
                     <span className="text-xs text-slate-300">
-                      por <strong className="text-white">{activeFicha.professorOrientador}</strong>
+                      Orientador: <strong className="text-white">{activeFicha.professorOrientador}</strong>
                     </span>
                   )}
                   {activeFicha.nota && (
-                    <span className="text-xs font-bold bg-amber-400 text-slate-950 px-2 py-0.5 rounded-md">
-                      Nota: {activeFicha.nota}
+                    <span className="text-xs font-bold bg-amber-400 text-slate-950 px-2.5 py-0.5 rounded-md">
+                      Nota Parcial: {activeFicha.nota} / 10
                     </span>
                   )}
                 </div>
 
-                <h3 className="text-base sm:text-lg font-black text-white flex items-center space-x-2">
-                  <span>Parecer e Orientações de Correção Disponíveis!</span>
+                <h3 className="text-lg sm:text-xl font-black text-white flex items-center space-x-2">
+                  <span>
+                    {hasPendingParecer
+                      ? 'Parecer e Orientações de Correção do Orientador Disponíveis'
+                      : 'Sua Ficha de TCC possui restrições pendentes para aprovação'}
+                  </span>
                 </h3>
 
-                <p className="text-xs sm:text-sm text-amber-100/90 leading-relaxed bg-black/30 p-3 rounded-xl border border-amber-500/30 italic">
-                  "{activeFicha.parecerOrientador.length > 200
-                    ? `${activeFicha.parecerOrientador.substring(0, 200)}...`
-                    : activeFicha.parecerOrientador}"
-                </p>
+                {/* Exibição destacada do parecer se houver */}
+                {activeFicha.parecerOrientador?.trim() && !activeFicha.parecerAtendido && (
+                  <div className="bg-black/40 p-3.5 rounded-xl border border-amber-500/40 text-xs sm:text-sm text-amber-100 leading-relaxed italic max-w-2xl">
+                    <strong className="text-amber-300 not-italic block mb-1 flex items-center space-x-1.5">
+                      <Bell className="w-4 h-4 text-amber-400" />
+                      <span>Mensagem do Orientador:</span>
+                    </strong>
+                    "{activeFicha.parecerOrientador}"
+                  </div>
+                )}
 
-                <p className="text-[11px] text-amber-300/80 font-medium">
-                  Seu orientador avaliou sua ficha. Clique neste card para abrir a edição e aplicar os ajustes solicitados.
+                {/* Lista de Restrições Ativas */}
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[11px] font-bold text-amber-300 uppercase tracking-wider block">
+                    Restrições e Pendências Identificadas:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 max-w-2xl">
+                    {restricoes.map((item, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center space-x-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-amber-950/80 text-amber-200 border border-amber-600/40"
+                      >
+                        <span className="text-amber-400">•</span>
+                        <span>{item}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-amber-200/80 font-medium">
+                  Clique no botão abaixo para abrir a edição e regularizar as informações e pendências da sua ficha.
                 </p>
               </div>
             </div>
 
-            <div className="shrink-0 pt-2 md:pt-0">
-              <div className="inline-flex items-center space-x-2 px-5 py-3 rounded-xl bg-amber-400 text-slate-950 font-black text-xs sm:text-sm shadow-xl group-hover:bg-amber-300 transition-colors">
-                <span>Abrir Edição de Ficha</span>
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </div>
+            {/* Ações do Card com Restrições */}
+            <div className="flex flex-col sm:flex-row lg:flex-col gap-2.5 shrink-0 pt-2 lg:pt-0">
+              <button
+                type="button"
+                onClick={() => onNavigate('editar')}
+                className="inline-flex items-center justify-center space-x-2.5 px-6 py-3.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs sm:text-sm shadow-xl shadow-amber-500/25 transition-all cursor-pointer group-hover:scale-[1.02]"
+              >
+                <FileEdit className="w-5 h-5 text-slate-950" />
+                <span>Editar Ficha de TCC</span>
+                <ArrowRight className="w-4 h-4 text-slate-950 group-hover:translate-x-1 transition-transform" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onNavigate('preview')}
+                className="inline-flex items-center justify-center space-x-1.5 px-4 py-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-colors cursor-pointer"
+              >
+                <Eye className="w-4 h-4 text-amber-400" />
+                <span>Ver Folha Atual</span>
+              </button>
             </div>
           </div>
         </div>
