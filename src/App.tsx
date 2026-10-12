@@ -49,7 +49,14 @@ export default function App() {
       const updatedAll = await cloudStorageService.getFichas();
       setFichas(updatedAll);
     } else {
-      const found = (activeId ? allFichas.find((f) => f.id === activeId) : null) || allFichas[0] || null;
+      const profName = activeUser?.name || '';
+      const profNorm = profName.replace(/^(prof|profa)\.?\s+/i, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const assigned = profNorm.length >= 3 ? allFichas.find((f) => {
+        if (!f.professorOrientador) return false;
+        const fProfNorm = f.professorOrientador.replace(/^(prof|profa)\.?\s+/i, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        return fProfNorm.includes(profNorm) || profNorm.includes(fProfNorm);
+      }) : null;
+      const found = (activeId ? allFichas.find((f) => f.id === activeId) : null) || assigned || allFichas[0] || null;
       setActiveFicha(found);
     }
   };
@@ -68,6 +75,12 @@ export default function App() {
     }
     storageService.logoutUser();
     setUser(null);
+    setActiveFicha(null);
+    try {
+      localStorage.removeItem('pm_faatesp_active_ficha_id');
+    } catch {
+      // ignore
+    }
     setActiveScreen('main');
   };
 

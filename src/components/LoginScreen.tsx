@@ -16,6 +16,7 @@ interface LoginScreenProps {
 
 // Allowed emails for Professor Orientador (Docente)
 const ALLOWED_ORIENTADOR_EMAILS = [
+  'rogerioaugusto@gmail.com',
   'faatesp.professor.rogerioaugusto@gmail.com',
   'marines.borba1@gmail.com'
 ];
@@ -31,11 +32,11 @@ function isOrientadorAuthorized(email: string): boolean {
 
 function getPredefinedNameForEmail(email: string, role: UserRole): string {
   const norm = normalizeEmail(email);
-  if (norm === 'faatesp.professor.rogerioaugusto@gmail.com') {
-    return 'Prof. Rogério Augusto';
+  if (norm === 'rogerioaugusto@gmail.com' || norm === 'faatesp.professor.rogerioaugusto@gmail.com') {
+    return role === 'orientador' ? 'Prof. Rogério Augusto' : 'Rogério Augusto';
   }
   if (norm === 'marines.borba1@gmail.com') {
-    return 'Profa. Marinês Borba';
+    return role === 'orientador' ? 'Profa. Marinês Borba' : 'Marinês Borba';
   }
   // Generate friendly name from email username part for alunos
   const username = email.split('@')[0] || 'Aluno';
@@ -74,16 +75,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       if (!isAuthorizedDocente) {
         setErrorMessage(
           'Acesso Negado: O e-mail informado não possui autorização para o perfil "Professor Orientador". Por favor, selecione o perfil "Aluno" para prosseguir.'
-        );
-        return;
-      }
-    }
-
-    // Vice-versa: If an authorized professor selected "Aluno", alert them to select Professor Orientador
-    if (role === 'aluno') {
-      if (isAuthorizedDocente) {
-        setErrorMessage(
-          'Atenção: Este e-mail é cadastrado como Professor Orientador. Por favor, selecione o perfil "Professor Orientador" para acessar suas ferramentas de docente.'
         );
         return;
       }

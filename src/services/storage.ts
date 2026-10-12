@@ -343,49 +343,51 @@ export const storageService = {
     const userEmailNorm = (user.email || '').trim().toLowerCase();
     const userId = user.id;
 
-    // 1. Check by user email or user ID
+    const normalizePersonName = (name?: string): string => {
+      if (!name) return '';
+      return name
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '');
+    };
+
+    // 1. Direct match by student email
     let found = allFichas.find(
-      (f) =>
-        (f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() === userEmailNorm) ||
-        f.usuarioId === userId
+      (f) => f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() === userEmailNorm
     );
 
-    // 2. Check active ficha id if matches this user
+    // 2. Direct match by student user ID
     if (!found) {
-      const activeId = this.getActiveFichaId();
-      if (activeId) {
-        const activeFicha = allFichas.find((f) => f.id === activeId);
-        if (
-          activeFicha &&
-          ((activeFicha.usuarioEmail && activeFicha.usuarioEmail.trim().toLowerCase() === userEmailNorm) ||
-            activeFicha.usuarioId === userId)
-        ) {
-          found = activeFicha;
-        }
-      }
+      found = allFichas.find((f) => f.usuarioId === userId);
     }
 
-    // 3. Check by student name if email/id had not been set previously
+    // 3. Match by student name with accent and space normalization
     if (!found && user.name) {
-      const userNameNorm = user.name.trim().toLowerCase();
-      found = allFichas.find(
-        (f) => f.nomeAluno && f.nomeAluno.trim().toLowerCase() === userNameNorm
-      );
-    }
-
-    // 4. Fallback: If only one non-empty ficha exists, bind it to this student
-    if (!found && allFichas.length > 0) {
-      const withContent = allFichas.filter(f => f.tituloTrabalho || f.nomeAluno);
-      if (withContent.length === 1) {
-        found = withContent[0];
-      } else if (allFichas.length === 1) {
-        found = allFichas[0];
+      const normTarget = normalizePersonName(user.name);
+      if (normTarget.length >= 3) {
+        found = allFichas.find((f) => {
+          const normFicha = normalizePersonName(f.nomeAluno);
+          return normFicha === normTarget || normFicha.includes(normTarget) || normTarget.includes(normFicha);
+        });
       }
     }
 
-    // 5. If none exists, create and bind a brand new persistent ficha
+    // 4. Match by email username prefix against student name
+    if (!found && user.email) {
+      const emailPrefix = normalizePersonName(user.email.split('@')[0]);
+      if (emailPrefix.length >= 4) {
+        found = allFichas.find((f) => {
+          const normFicha = normalizePersonName(f.nomeAluno);
+          return normFicha === emailPrefix || normFicha.includes(emailPrefix) || emailPrefix.includes(normFicha);
+        });
+      }
+    }
+
+    // 5. If none exists, create and bind a brand new persistent ficha for this student
     if (!found) {
       found = this.createNewFicha(user);
+      this.saveFicha(found);
     } else {
       // Ensure user credentials and institutional logo are linked
       let needsUpdate = false;
