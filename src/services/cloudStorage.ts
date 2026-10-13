@@ -222,14 +222,6 @@ export const cloudStorageService = {
         );
       }
 
-      if (!found && userEmailNorm.includes('antoniacapristano')) {
-        found = all.find(
-          (f) =>
-            f.id === 'ficha-faatesp-004' ||
-            (f.nomeAluno && normalizePersonName(f.nomeAluno).includes('antonia'))
-        );
-      }
-
       // 3. Direct match by student user ID
       if (!found) {
         found = all.find((f) => f.usuarioId === userId);

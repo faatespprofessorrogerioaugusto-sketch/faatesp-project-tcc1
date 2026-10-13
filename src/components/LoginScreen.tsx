@@ -60,12 +60,6 @@ function getPredefinedNameForEmail(email: string, role: UserRole): string {
   if (norm === 'neuzasofia555@gmail.com') {
     return 'Marineuza Lina de Souza';
   }
-  if (
-    norm === 'antoniacapristanodasilvasantos@gmail.com' ||
-    norm === 'antoniacapristano@gmail.com'
-  ) {
-    return 'Antonia Capristano da Silva Santos';
-  }
   if (norm === 'mariana.costa@gmail.com') {
     return 'Mariana Costa Ribeiro';
   }
