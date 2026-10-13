@@ -68,77 +68,85 @@ app.get('/api/email-history', (req, res) => {
   res.json({ success: true, history: emailOutboxHistory });
 });
 
-// API Endpoint to send email with PDF attachment
+// Helper to get or create mail transporter
+async function getMailTransporter(customSmtp?: any) {
+  let transporter: any;
+  let isRealSmtp = false;
+  let fromAddress = process.env.SMTP_FROM || 'FAATESP TCC <orientacao@faatesp.edu.br>';
+
+  const smtpHost = customSmtp?.host || process.env.SMTP_HOST;
+  const smtpPort = Number(customSmtp?.port || process.env.SMTP_PORT || 587);
+  const smtpUser = customSmtp?.user || process.env.SMTP_USER;
+  const smtpPass = customSmtp?.pass || process.env.SMTP_PASS;
+
+  if (smtpHost && smtpUser && smtpPass) {
+    isRealSmtp = true;
+    if (customSmtp?.from) fromAddress = customSmtp.from;
+    transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+      tls: {
+        rejectUnauthorized: false
+      }
+    });
+  } else {
+    const testAccount = await nodemailer.createTestAccount();
+    fromAddress = `"FAATESP TCC (Notificações)" <${testAccount.user}>`;
+    transporter = nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
+  }
+
+  return { transporter, isRealSmtp, fromAddress };
+}
+
+// API Endpoint to send email with optional PDF attachment
 app.post('/api/send-email', async (req, res) => {
   const { to, subject, body, pdfBase64, pdfFilename, studentName, grade, customSmtp } = req.body;
 
-  if (!to || !pdfBase64) {
+  if (!to) {
     return res.status(400).json({
       success: false,
-      message: 'E-mail do destinatário e arquivo PDF são obrigatórios.'
+      message: 'E-mail do destinatário é obrigatório.'
     });
   }
 
   const recordId = `email_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const filename = pdfFilename || 'Ficha_Orientacao_Corrigida.pdf';
 
-  // Convert base64 PDF data to Buffer and store for download link endpoint
-  const base64Clean = pdfBase64.replace(/^data:application\/pdf;base64,/, '');
-  const pdfBuffer = Buffer.from(base64Clean, 'base64');
-  pdfStore.set(recordId, { pdfBuffer, filename });
+  let downloadUrl = '';
+  let pdfBuffer: Buffer | null = null;
 
-  const hostUrl = `${req.protocol}://${req.get('host')}`;
-  const downloadUrl = `${hostUrl}/api/download-pdf/${recordId}`;
+  if (pdfBase64) {
+    const base64Clean = pdfBase64.replace(/^data:application\/pdf;base64,/, '');
+    pdfBuffer = Buffer.from(base64Clean, 'base64');
+    pdfStore.set(recordId, { pdfBuffer, filename });
+    const hostUrl = `${req.protocol}://${req.get('host')}`;
+    downloadUrl = `${hostUrl}/api/download-pdf/${recordId}`;
+  }
 
   try {
-    let transporter: any;
-    let isRealSmtp = false;
-    let fromAddress = process.env.SMTP_FROM || 'FAATESP TCC <orientacao@faatesp.edu.br>';
+    const { transporter, isRealSmtp, fromAddress } = await getMailTransporter(customSmtp);
 
-    // 1. Check custom user SMTP or Environment SMTP
-    const smtpHost = customSmtp?.host || process.env.SMTP_HOST;
-    const smtpPort = Number(customSmtp?.port || process.env.SMTP_PORT || 587);
-    const smtpUser = customSmtp?.user || process.env.SMTP_USER;
-    const smtpPass = customSmtp?.pass || process.env.SMTP_PASS;
+    const plainTextBody = downloadUrl
+      ? `${body}\n\n----------------------------------------\n📄 LINK PARA BAIXAR SUA FICHA EM PDF:\n${downloadUrl}\n----------------------------------------`
+      : body;
 
-    if (smtpHost && smtpUser && smtpPass) {
-      isRealSmtp = true;
-      if (customSmtp?.from) fromAddress = customSmtp.from;
-      transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpPort === 465,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
-        tls: {
-          rejectUnauthorized: false
-        }
-      });
-    } else {
-      // 2. Fallback to Ethereal Email test account for real preview link
-      console.log('Nenhum servidor SMTP real configurado em .env. Criando conta Ethereal para teste real...');
-      const testAccount = await nodemailer.createTestAccount();
-      fromAddress = `"FAATESP TCC (Simulador)" <${testAccount.user}>`;
-      transporter = nodemailer.createTransport({
-        host: 'smtp.ethereal.email',
-        port: 587,
-        secure: false,
-        auth: {
-          user: testAccount.user,
-          pass: testAccount.pass,
-        },
-      });
-    }
-
-    const plainTextBody = `${body}\n\n----------------------------------------\n📄 LINK PARA BAIXAR SUA FICHA EM PDF:\n${downloadUrl}\n----------------------------------------`;
-
-    // Mail options
-    const mailOptions = {
+    const mailOptions: any = {
       from: fromAddress,
       to,
-      subject: subject || '[FAATESP TCC] Ficha de Orientação de TCC Corrigida com Nota',
+      subject: subject || '[FAATESP TCC] Ficha de Orientação de TCC Corrigida',
       text: plainTextBody,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; color: #1e293b; background-color: #ffffff;">
@@ -147,7 +155,7 @@ app.post('/api/send-email', async (req, res) => {
             <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.9;">Ficha de Orientação e Parecer Final de TCC</p>
           </div>
           <div style="padding: 24px; background-color: #ffffff;">
-            <p style="font-size: 14px; line-height: 1.6; white-space: pre-wrap; color: #334155;">${body.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+            <p style="font-size: 14px; line-height: 1.6; white-space: pre-wrap; color: #334155;">${(body || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
             
             <div style="margin: 20px 0; padding: 16px; background-color: #f8fafc; border-left: 4px solid #4f46e5; border-radius: 6px;">
               <p style="margin: 0 0 8px 0; font-weight: bold; font-size: 13px; color: #312e81;">RESUMO DO TCC CORRIGIDO:</p>
@@ -155,33 +163,35 @@ app.post('/api/send-email', async (req, res) => {
               <p style="margin: 4px 0; font-size: 13px;"><strong>Nota Atribuída:</strong> <span style="display: inline-block; background-color: #fef3c7; color: #78350f; font-weight: bold; padding: 2px 8px; border-radius: 4px; border: 1px solid #fde68a;">${grade || 'Pendente'}</span></p>
             </div>
 
-            <!-- Direct Download Button inside Email Body -->
+            ${downloadUrl ? `
             <div style="margin: 28px 0; text-align: center;">
               <a href="${downloadUrl}" target="_blank" style="background-color: #2563eb; color: #ffffff; padding: 14px 28px; font-size: 15px; font-weight: bold; text-decoration: none; border-radius: 8px; display: inline-block; box-shadow: 0 4px 10px rgba(37,99,235,0.25);">
                 📄 Clique aqui para Baixar / Visualizar Ficha do TCC em PDF
               </a>
             </div>
-
             <p style="font-size: 11px; color: #64748b; text-align: center; margin-top: 8px;">
               Link direto alternativo: <a href="${downloadUrl}" target="_blank" style="color: #2563eb; word-break: break-all;">${downloadUrl}</a>
             </p>
+            ` : ''}
 
+            ${pdfBuffer ? `
             <div style="margin-top: 20px; padding: 12px; background-color: #e0e7ff; border-radius: 8px; font-size: 12px; color: #3730a3; text-align: center;">
               📎 <strong>Anexo do e-mail:</strong> O arquivo <code>${filename}</code> também foi anexado a esta mensagem.
             </div>
+            ` : ''}
           </div>
           <div style="background-color: #f1f5f9; padding: 16px; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0;">
             Sistema de Gestão de TCC - FAATESP • Este é um e-mail automático enviado pelo orientador.
           </div>
         </div>
       `,
-      attachments: [
+      attachments: pdfBuffer ? [
         {
           filename: filename,
           content: pdfBuffer,
           contentType: 'application/pdf',
         },
-      ],
+      ] : []
     };
 
     const info = await transporter.sendMail(mailOptions);
@@ -190,8 +200,8 @@ app.post('/api/send-email', async (req, res) => {
     const record: EmailRecord = {
       id: recordId,
       to,
-      subject,
-      body,
+      subject: mailOptions.subject,
+      body: body || '',
       studentName: studentName || 'Aluno',
       grade: grade || 'Pendente',
       pdfFilename: filename,
@@ -210,32 +220,245 @@ app.post('/api/send-email', async (req, res) => {
       isRealSmtp,
       testMessageUrl,
       message: isRealSmtp
-        ? `E-mail com PDF entregue com sucesso via SMTP real para ${to}!`
-        : `E-mail processado com sucesso no servidor. (Para enviar direto para a caixa do ${to} sem restrição de SPAM do Google, use a opção 'Abrir no Gmail Web' no topo ou informe sua Senha de App do Gmail na aba Servidor SMTP).`,
+        ? `E-mail entregue com sucesso via SMTP real para ${to}!`
+        : `E-mail processado com sucesso no servidor.`,
       record
     });
   } catch (error: any) {
     console.error('Erro no envio de e-mail:', error);
-    
+    res.status(500).json({
+      success: false,
+      message: `Erro ao enviar e-mail: ${error.message || 'Falha no servidor SMTP'}.`,
+      error: error.message
+    });
+  }
+});
+
+// API Endpoint for AUTOMATIC BACKGROUND STATUS NOTIFICATION
+// Triggers Tag Verde (Approved -> Export PDF link) or Tag Laranja (Restrictions -> Edit Ficha link)
+app.post('/api/send-status-notification', async (req, res) => {
+  const {
+    to,
+    studentName,
+    status,
+    workTitle,
+    professorOrientador,
+    nota,
+    parecerOrientador,
+    appUrl,
+    pdfBase64,
+    pdfFilename,
+    customSmtp
+  } = req.body;
+
+  if (!to || typeof to !== 'string' || !to.includes('@')) {
+    return res.status(400).json({
+      success: false,
+      message: 'E-mail do aluno destinatário é obrigatório e deve ser válido.'
+    });
+  }
+
+  const isAprovado = status === 'aprovado';
+  const targetAppUrl = appUrl || process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+  const recordId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const filename = pdfFilename || 'Ficha_TCC_Oficial.pdf';
+
+  let downloadUrl = '';
+  let pdfBuffer: Buffer | null = null;
+
+  if (pdfBase64) {
+    const base64Clean = pdfBase64.replace(/^data:application\/pdf;base64,/, '');
+    pdfBuffer = Buffer.from(base64Clean, 'base64');
+    pdfStore.set(recordId, { pdfBuffer, filename });
+    const hostUrl = `${req.protocol}://${req.get('host')}`;
+    downloadUrl = `${hostUrl}/api/download-pdf/${recordId}`;
+  }
+
+  const subject = isAprovado
+    ? `[FAATESP TCC] 🎉 Parabéns! Sua Ficha de TCC foi APROVADA - Baixe seu PDF`
+    : `[FAATESP TCC] ⚠️ Atualização na Ficha de TCC: Ajustes Solicitados pelo Orientador`;
+
+  const bannerGradient = isAprovado
+    ? 'linear-gradient(135deg, #064e3b 0%, #047857 50%, #059669 100%)'
+    : 'linear-gradient(135deg, #78350f 0%, #c2410c 50%, #d97706 100%)';
+
+  const badgeText = isAprovado
+    ? '🟢 TAG VERDE: APROVADO PELO ORIENTADOR'
+    : '🟠 TAG LARANJA: NECESSITA AJUSTES / RESTRIÇÕES';
+
+  const badgeBg = isAprovado ? '#ecfdf5' : '#fffbeb';
+  const badgeBorder = isAprovado ? '#10b981' : '#f59e0b';
+  const badgeColor = isAprovado ? '#065f46' : '#92400e';
+
+  const actionButtonText = isAprovado
+    ? '📄 ACESSAR PLATAFORMA PARA EXPORTAR PDF OFICIAL'
+    : '✏️ ACESSAR PLATAFORMA PARA EDITAR SUA FICHA';
+
+  const actionButtonBg = isAprovado ? '#059669' : '#d97706';
+
+  const mainInstruction = isAprovado
+    ? `Excelente notícia! A sua Ficha de Orientação de TCC foi revisada e <strong>APROVADA OFICIALMENTE</strong> pelo seu orientador. O documento já está apto para exportação em PDF com todas as assinaturas e notas homologadas.`
+    : `O seu Professor Orientador avaliou a sua Ficha de Orientação de TCC e apontou <strong>itens que necessitam de ajustes ou complementação</strong> antes da aprovação final. Por favor, acesse o sistema para revisar os pontos indicados e reenviar a ficha corrigida.`;
+
+  const htmlBody = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 650px; margin: 0 auto; border: 1px solid #cbd5e1; border-radius: 16px; overflow: hidden; background-color: #ffffff; color: #1e293b;">
+      <!-- Header Banner -->
+      <div style="background: ${bannerGradient}; color: #ffffff; padding: 28px 24px; text-align: center;">
+        <span style="display: inline-block; padding: 4px 12px; background: rgba(255,255,255,0.2); border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px;">
+          Faculdade de Tecnologia FAATESP
+        </span>
+        <h1 style="margin: 0; font-size: 22px; font-weight: 800; line-height: 1.3;">
+          ${isAprovado ? 'Sua Ficha de TCC foi Aprovada!' : 'Atualização na sua Ficha de TCC'}
+        </h1>
+        <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.95;">
+          Gestão e Acompanhamento de Atividades de Orientação
+        </p>
+      </div>
+
+      <div style="padding: 26px 24px;">
+        <!-- Status Tag Badge -->
+        <div style="display: inline-block; padding: 6px 14px; background-color: ${badgeBg}; border: 1px solid ${badgeBorder}; border-radius: 9999px; color: ${badgeColor}; font-size: 12px; font-weight: 800; margin-bottom: 18px;">
+          ${badgeText}
+        </div>
+
+        <p style="font-size: 15px; line-height: 1.6; color: #334155; margin-top: 0;">
+          Olá, <strong>${studentName || 'Aluno(a)'}</strong>,
+        </p>
+
+        <p style="font-size: 14px; line-height: 1.6; color: #334155;">
+          ${mainInstruction}
+        </p>
+
+        <!-- Details Card -->
+        <div style="margin: 20px 0; padding: 18px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
+          <h3 style="margin: 0 0 12px 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b;">
+            Resumo dos Dados da Ficha
+          </h3>
+          <p style="margin: 4px 0; font-size: 13px;"><strong>Título do TCC:</strong> ${workTitle || 'Não informado'}</p>
+          <p style="margin: 4px 0; font-size: 13px;"><strong>Orientador:</strong> ${professorOrientador || 'Não informado'}</p>
+          ${nota ? `<p style="margin: 4px 0; font-size: 13px;"><strong>Nota Atribuída:</strong> <span style="display: inline-block; background-color: #fef3c7; color: #92400e; font-weight: 800; padding: 2px 8px; border-radius: 4px;">${nota}</span></p>` : ''}
+          ${parecerOrientador ? `
+            <div style="margin-top: 12px; padding: 12px; background-color: #ffffff; border-left: 4px solid ${isAprovado ? '#10b981' : '#f59e0b'}; border-radius: 4px;">
+              <strong style="font-size: 12px; color: #475569; display: block; margin-bottom: 4px;">PARECER DO PROFESSOR ORIENTADOR:</strong>
+              <span style="font-size: 13px; color: #1e293b; font-style: italic;">"${parecerOrientador}"</span>
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- Main Action CTA Button with App URL -->
+        <div style="margin: 32px 0; text-align: center;">
+          <a href="${targetAppUrl}" target="_blank" style="background-color: ${actionButtonBg}; color: #ffffff; padding: 16px 30px; font-size: 14px; font-weight: 800; text-decoration: none; border-radius: 10px; display: inline-block; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+            ${actionButtonText}
+          </a>
+        </div>
+
+        <!-- Direct App Link Fallback -->
+        <div style="padding: 12px; background-color: #f1f5f9; border-radius: 8px; font-size: 12px; color: #475569; text-align: center; margin-top: 10px;">
+          Link direto para retornar ao aplicativo:<br/>
+          <a href="${targetAppUrl}" target="_blank" style="color: #2563eb; font-weight: 600; word-break: break-all;">
+            ${targetAppUrl}
+          </a>
+        </div>
+
+        ${downloadUrl ? `
+        <div style="margin-top: 20px; padding: 14px; background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 10px; text-align: center;">
+          <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: 700; color: #065f46;">
+            📄 Cópia do PDF já gerada pelo orientador:
+          </p>
+          <a href="${downloadUrl}" target="_blank" style="display: inline-block; background-color: #047857; color: #ffffff; padding: 8px 18px; font-size: 12px; font-weight: 700; text-decoration: none; border-radius: 6px;">
+            Baixar PDF Gerado
+          </a>
+        </div>
+        ` : ''}
+
+        ${pdfBuffer ? `
+        <p style="font-size: 11px; color: #64748b; text-align: center; margin-top: 14px;">
+          📎 O arquivo <code>${filename}</code> também foi anexado a esta mensagem.
+        </p>
+        ` : ''}
+      </div>
+
+      <!-- Footer -->
+      <div style="background-color: #f8fafc; padding: 16px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+        Faculdade de Tecnologia Álvares de Azevedo - FAATESP • Sistema de TCC<br/>
+        Este é um e-mail de notificação automática gerado a partir do parecer do orientador.
+      </div>
+    </div>
+  `;
+
+  const plainText = `
+${isAprovado ? 'SUA FICHA DE TCC FOI APROVADA!' : 'ATUALIZAÇÃO NA SUA FICHA DE TCC'}
+Faculdade de Tecnologia FAATESP
+
+Olá, ${studentName || 'Aluno(a)'}!
+
+${isAprovado
+  ? 'Sua Ficha de Orientação de TCC foi APROVADA OFICIALMENTE pelo seu orientador. Acesse a plataforma para exportar em PDF.'
+  : 'O seu orientador revisou sua ficha e solicitou ajustes/correções. Acesse o sistema para editar sua ficha.'}
+
+TÍTULO DO TCC: ${workTitle || 'Não informado'}
+ORIENTADOR: ${professorOrientador || 'Não informado'}
+NOTA: ${nota || 'Pendente'}
+PARECER: "${parecerOrientador || 'Sem observações adicionais.'}"
+
+LINK PARA ACESSAR O APLICATIVO:
+${targetAppUrl}
+${downloadUrl ? `\nLINK PARA BAIXAR PDF: ${downloadUrl}\n` : ''}
+  `;
+
+  try {
+    const { transporter, isRealSmtp, fromAddress } = await getMailTransporter(customSmtp);
+
+    const mailOptions: any = {
+      from: fromAddress,
+      to,
+      subject,
+      text: plainText,
+      html: htmlBody,
+      attachments: pdfBuffer ? [
+        {
+          filename: filename,
+          content: pdfBuffer,
+          contentType: 'application/pdf',
+        }
+      ] : []
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    const testMessageUrl = isRealSmtp ? false : nodemailer.getTestMessageUrl(info);
+
     const record: EmailRecord = {
       id: recordId,
       to,
       subject,
-      body,
+      body: plainText,
       studentName: studentName || 'Aluno',
-      grade: grade || 'Pendente',
+      grade: nota || 'Pendente',
       pdfFilename: filename,
       sentAt: new Date().toISOString(),
-      isRealSmtp: false,
-      status: 'failed',
-      errorMessage: error.message || 'Erro no servidor de e-mail',
+      isRealSmtp,
+      testMessageUrl,
+      status: 'sent',
       pdfBase64Data: pdfBase64
     };
+
     emailOutboxHistory.unshift(record);
 
+    res.json({
+      success: true,
+      messageId: info.messageId,
+      isRealSmtp,
+      testMessageUrl,
+      message: isRealSmtp
+        ? `Notificação automática enviada com sucesso para ${to}!`
+        : `Notificação enviada em segundo plano para ${to}!`,
+      record
+    });
+  } catch (error: any) {
+    console.error('Erro no disparo automático de status:', error);
     res.status(500).json({
       success: false,
-      message: `Erro ao enviar e-mail: ${error.message || 'Falha no servidor SMTP'}. O PDF continuará disponível para download local.`,
+      message: `Erro ao enviar notificação automática: ${error.message || 'Falha no servidor SMTP'}.`,
       error: error.message
     });
   }
