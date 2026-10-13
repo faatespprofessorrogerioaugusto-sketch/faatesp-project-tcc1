@@ -15,12 +15,21 @@ import {
   Bell,
   Check,
   Home,
-  ArrowRight
+  ArrowRight,
+  Lock,
+  Unlock,
+  Sparkles,
+  AlertTriangle
 } from 'lucide-react';
 import { getSignatureForProfessor } from '../utils/signatures';
 import { storageService } from '../services/storage';
 import { generatePdf } from '../utils/exportPdf';
 import { generateDocx } from '../utils/exportDocx';
+import {
+  validateStudentFullName,
+  formatToTitleCase,
+  NameValidationResult
+} from '../utils/nameValidator';
 
 interface FichaFormProps {
   ficha: FichaTCC;
@@ -55,8 +64,21 @@ export const FichaForm: React.FC<FichaFormProps> = ({
   });
 
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<string>('Sincronizado');
   const isFirstRender = useRef(true);
+
+  // References to highlight / focus fields
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  // Validation states
+  // Requisito 2: obrigar a preencher o título/tema senão não pode entrar nos outros campos
+  const isTituloPreenchido = Boolean(formData.tituloTrabalho && formData.tituloTrabalho.trim().length >= 3);
+
+  // Requisito 1: forçar o aluno a colocar o nome completo no formato Maiúscula e minúscula com o nome e sobrenome
+  const studentNameValidation: NameValidationResult = validateStudentFullName(formData.nomeAluno || '');
+  const hasStartedTypingName = Boolean(formData.nomeAluno && formData.nomeAluno.trim().length > 0);
 
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isExportingDocx, setIsExportingDocx] = useState(false);
@@ -65,7 +87,54 @@ export const FichaForm: React.FC<FichaFormProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
 
+  const handleApplySuggestedName = () => {
+    const formatted = formatToTitleCase(formData.nomeAluno || '');
+    if (formatted) {
+      setFormData((prev) => ({
+        ...prev,
+        nomeAluno: formatted
+      }));
+      setErrorMessage(null);
+    }
+  };
+
+  const handleStudentNameBlur = () => {
+    const trimmed = (formData.nomeAluno || '').trim();
+    if (trimmed) {
+      const parts = trimmed.split(/\s+/).filter(Boolean);
+      if (parts.length >= 2) {
+        // Auto-correct casing if typed in all caps or all lowercase
+        const formatted = formatToTitleCase(trimmed);
+        if (formatted !== trimmed) {
+          setFormData((prev) => ({
+            ...prev,
+            nomeAluno: formatted
+          }));
+        }
+      }
+    }
+  };
+
   const handleDirectExportPdf = async () => {
+    // 1. Validar Título/Tema
+    if (!isTituloPreenchido) {
+      setErrorMessage('Atenção: O preenchimento do Título/Tema do TCC é obrigatório para exportar a ficha.');
+      titleInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      titleInputRef.current?.focus();
+      return;
+    }
+
+    // 2. Validar Nome do Aluno
+    if (!studentNameValidation.isValid) {
+      setErrorMessage(
+        studentNameValidation.message ||
+          'Por favor, preencha o seu nome completo com Nome e Sobrenome no formato com iniciais Maiúsculas e minúsculas (Ex: Maria da Silva).'
+      );
+      nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      nameInputRef.current?.focus();
+      return;
+    }
+
     try {
       setIsExportingPdf(true);
       setExportNotice(null);
@@ -83,6 +152,25 @@ export const FichaForm: React.FC<FichaFormProps> = ({
   };
 
   const handleDirectExportDocx = async () => {
+    // 1. Validar Título/Tema
+    if (!isTituloPreenchido) {
+      setErrorMessage('Atenção: O preenchimento do Título/Tema do TCC é obrigatório para exportar a ficha.');
+      titleInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      titleInputRef.current?.focus();
+      return;
+    }
+
+    // 2. Validar Nome do Aluno
+    if (!studentNameValidation.isValid) {
+      setErrorMessage(
+        studentNameValidation.message ||
+          'Por favor, preencha o seu nome completo com Nome e Sobrenome no formato com iniciais Maiúsculas e minúsculas (Ex: Maria da Silva).'
+      );
+      nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      nameInputRef.current?.focus();
+      return;
+    }
+
     try {
       setIsExportingDocx(true);
       setExportNotice(null);
@@ -158,6 +246,9 @@ export const FichaForm: React.FC<FichaFormProps> = ({
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
+    if (errorMessage) {
+      setErrorMessage(null);
+    }
     setFormData((prev) => ({
       ...prev,
       [name]: value
@@ -167,6 +258,9 @@ export const FichaForm: React.FC<FichaFormProps> = ({
   const handleProfessorOrientadorChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedProf = e.target.value;
     const autoSig = getSignatureForProfessor(selectedProf);
+    if (errorMessage) {
+      setErrorMessage(null);
+    }
     setFormData((prev) => ({
       ...prev,
       professorOrientador: selectedProf,
@@ -205,6 +299,7 @@ export const FichaForm: React.FC<FichaFormProps> = ({
         }
       ]
     }));
+    setErrorMessage(null);
     setSaveSuccessMsg('Campos limpos. Suas alterações foram salvas.');
     setTimeout(() => setSaveSuccessMsg(''), 3000);
     setShowClearConfirm(false);
@@ -276,6 +371,29 @@ export const FichaForm: React.FC<FichaFormProps> = ({
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    setErrorMessage(null);
+
+    // 1. Validar Título/Tema do TCC
+    if (!isTituloPreenchido) {
+      setErrorMessage(
+        'Atenção: O preenchimento do Título/Tema do TCC é obrigatório para liberar os outros campos e salvar a ficha.'
+      );
+      titleInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      titleInputRef.current?.focus();
+      return;
+    }
+
+    // 2. Validar Nome do Aluno (Nome e Sobrenome em Maiúsculas e minúsculas)
+    if (!studentNameValidation.isValid) {
+      setErrorMessage(
+        studentNameValidation.message ||
+          'Por favor, preencha o seu nome completo com Nome e Sobrenome no formato com iniciais Maiúsculas e minúsculas (Ex: Maria da Silva).'
+      );
+      nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      nameInputRef.current?.focus();
+      return;
+    }
+
     setIsSaving(true);
     const isStudent = currentUser.role === 'aluno';
     const fichaToSave: FichaTCC = {
@@ -374,6 +492,23 @@ export const FichaForm: React.FC<FichaFormProps> = ({
         </div>
       </div>
 
+      {/* Error Alert Banner */}
+      {errorMessage && (
+        <div className="p-4 bg-rose-950/95 border-2 border-rose-500 text-rose-200 rounded-2xl text-xs sm:text-sm font-semibold flex items-center justify-between gap-3 shadow-2xl animate-fadeIn">
+          <div className="flex items-center space-x-2.5">
+            <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setErrorMessage(null)}
+            className="text-xs px-2.5 py-1 bg-rose-900/60 hover:bg-rose-800 text-rose-100 rounded-lg transition-colors cursor-pointer shrink-0"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
+
       {exportNotice && (
         <div className="p-4 bg-emerald-950/90 border border-emerald-700 text-emerald-200 rounded-xl text-sm font-medium flex items-center space-x-2 animate-in fade-in">
           <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
@@ -425,64 +560,211 @@ export const FichaForm: React.FC<FichaFormProps> = ({
       )}
 
       {/* 1. Identification Block */}
-      <div className="bg-[#0d1527] p-6 rounded-2xl border border-slate-800 shadow-xl space-y-4">
-        <h3 className="text-sm font-bold text-white uppercase tracking-wide border-b border-slate-800/80 pb-2 flex items-center justify-between">
-          <span>Identificação Acadêmica</span>
+      <div className="bg-[#0d1527] p-6 rounded-2xl border border-slate-800 shadow-xl space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+          <h3 className="text-sm font-bold text-white uppercase tracking-wide flex items-center space-x-2">
+            <span>Identificação Acadêmica</span>
+          </h3>
           <span className="text-xs font-normal text-slate-400 lowercase">cabeçalho oficial FAATESP</span>
-        </h3>
+        </div>
+
+        {/* Título do TCC - Campo Chave Obrigatório Inicial */}
+        <div className="bg-[#070c18] p-4 rounded-xl border border-slate-700/80 space-y-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+            <label htmlFor="field_tcc_titulo" className="text-xs font-bold text-white flex items-center space-x-1.5">
+              <span>Título do Trabalho de Conclusão (TCC) / Tema</span>
+              <span className="text-rose-400">*</span>
+            </label>
+            <span
+              className={`text-[11px] font-bold px-2 py-0.5 rounded flex items-center space-x-1 self-start sm:self-auto ${
+                isTituloPreenchido
+                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-700/80'
+                  : 'bg-amber-950 text-amber-300 border border-amber-600/80 animate-pulse'
+              }`}
+            >
+              {isTituloPreenchido ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Título Preenchido — Campos Liberados</span>
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Etapa 1: Obrigatório para liberar os demais campos</span>
+                </>
+              )}
+            </span>
+          </div>
+
+          <input
+            ref={titleInputRef}
+            type="text"
+            name="tituloTrabalho"
+            id="field_tcc_titulo"
+            autoComplete="one-time-code"
+            autoCorrect="off"
+            spellCheck="false"
+            data-lpignore="true"
+            data-form-type="other"
+            value={formData.tituloTrabalho}
+            onChange={handleChange}
+            placeholder="Digite o título ou tema do seu TCC (ex: Desenvolvimento de Sistema Web para Gestão de TCC)"
+            className={`w-full text-white border rounded-lg px-3.5 py-2.5 text-sm transition-all focus:ring-2 placeholder:text-slate-500 font-medium ${
+              !isTituloPreenchido
+                ? 'bg-amber-950/20 border-amber-500/80 ring-2 ring-amber-500/30 focus:ring-amber-500 focus:border-amber-500'
+                : 'bg-[#0b1325] border-emerald-600/80 focus:ring-blue-500 focus:border-blue-500'
+            }`}
+          />
+
+          {!isTituloPreenchido ? (
+            <p className="text-[11px] text-amber-300/90 flex items-center space-x-1.5 font-medium pt-0.5">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>
+                <strong>Atenção:</strong> É obrigatório preencher o Título/Tema do TCC acima para que os outros campos do formulário sejam desbloqueados.
+              </span>
+            </p>
+          ) : (
+            <p className="text-[11px] text-emerald-400 flex items-center space-x-1 font-medium pt-0.5">
+              <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>Título preenchido com sucesso! O acesso a todos os outros campos está liberado.</span>
+            </p>
+          )}
+        </div>
+
+        {/* Banner de bloqueio caso o título ainda não tenha sido preenchido */}
+        {!isTituloPreenchido && (
+          <div className="p-3.5 bg-slate-900/90 border border-amber-600/50 rounded-xl flex items-center space-x-3 text-xs text-amber-300 animate-fadeIn">
+            <Lock className="w-5 h-5 text-amber-400 shrink-0" />
+            <div>
+              <strong className="block font-bold text-amber-200">Demais campos bloqueados</strong>
+              <span>
+                Preencha o campo <em>"Título do Trabalho de Conclusão (TCC)"</em> acima para liberar o preenchimento do Nome do Aluno, Curso, Situação-Problema, Hipótese e Bibliografia.
+              </span>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Título do Trabalho de Conclusão (TCC)
+          {/* Nome do Aluno(a) com validação forçada de formato Maiúscula e minúscula com Nome e Sobrenome */}
+          <div className="relative">
+            <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+              <span className="flex items-center space-x-1">
+                <span>Nome do Aluno(a)</span>
+                <span className="text-rose-400">*</span>
+              </span>
+              {isTituloPreenchido && (
+                <span className="text-[10px] text-slate-400">
+                  Nome e Sobrenome (iniciais Maiúsculas)
+                </span>
+              )}
             </label>
-            <input
-              type="text"
-              name="tituloTrabalho"
-              id="field_tcc_titulo"
-              autoComplete="one-time-code"
-              autoCorrect="off"
-              spellCheck="false"
-              data-lpignore="true"
-              data-form-type="other"
-              value={formData.tituloTrabalho}
-              onChange={handleChange}
-              placeholder="Ex: Desenvolvimento de Sistema Web para Gestão de Atividades de TCC"
-              className="w-full bg-[#0b1325] text-white border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder:text-slate-500"
-            />
+
+            <div className="relative">
+              <input
+                ref={nameInputRef}
+                type="text"
+                name="nomeAluno"
+                id="field_tcc_aluno_nome"
+                autoComplete="one-time-code"
+                autoCorrect="off"
+                spellCheck="false"
+                data-lpignore="true"
+                data-form-type="other"
+                disabled={!isTituloPreenchido}
+                value={formData.nomeAluno || ''}
+                onChange={handleChange}
+                onBlur={handleStudentNameBlur}
+                placeholder={
+                  !isTituloPreenchido
+                    ? '🔒 Preencha o Título do TCC para desbloquear'
+                    : 'Digite seu nome completo (ex: Maria da Silva)'
+                }
+                className={`w-full text-white border rounded-lg px-3 py-2 text-sm transition-all ${
+                  !isTituloPreenchido
+                    ? 'bg-slate-900/60 border-slate-800 text-slate-500 cursor-not-allowed select-none opacity-60'
+                    : hasStartedTypingName && !studentNameValidation.isValid
+                    ? 'bg-[#0b1325] border-rose-500 ring-2 ring-rose-500/40 focus:ring-rose-500 focus:border-rose-500 text-rose-100 font-medium'
+                    : hasStartedTypingName && studentNameValidation.isValid
+                    ? 'bg-[#0b1325] border-emerald-500 text-white focus:ring-2 focus:ring-emerald-500'
+                    : 'bg-[#0b1325] border-slate-700 text-white focus:ring-2 focus:ring-blue-500 placeholder:text-slate-500'
+                }`}
+              />
+              {!isTituloPreenchido && (
+                <Lock className="w-4 h-4 text-slate-500 absolute right-3 top-2.5 pointer-events-none" />
+              )}
+              {isTituloPreenchido && hasStartedTypingName && studentNameValidation.isValid && (
+                <Check className="w-4 h-4 text-emerald-400 absolute right-3 top-2.5 pointer-events-none" />
+              )}
+            </div>
+
+            {/* Aviso quando bloqueado */}
+            {!isTituloPreenchido && (
+              <p className="text-[11px] text-slate-500 mt-1 flex items-center space-x-1">
+                <Lock className="w-3 h-3 text-slate-500" />
+                <span>Bloqueado até o preenchimento do Título/Tema</span>
+              </p>
+            )}
+
+            {/* Feedback de Validação do Nome quando desbloqueado */}
+            {isTituloPreenchido && (
+              <>
+                {!hasStartedTypingName && (
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Digite seu nome e sobrenome com iniciais Maiúsculas e minúsculas (Ex: Maria da Silva, João Pereira).
+                  </p>
+                )}
+
+                {hasStartedTypingName && !studentNameValidation.isValid && (
+                  <div className="mt-1.5 p-2.5 bg-rose-950/80 border border-rose-700/80 rounded-xl space-y-1.5 animate-fadeIn">
+                    <div className="flex items-start space-x-1.5 text-xs text-rose-200">
+                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      <span className="leading-tight font-medium">{studentNameValidation.message}</span>
+                    </div>
+                    {studentNameValidation.suggestedName && (
+                      <button
+                        type="button"
+                        onClick={handleApplySuggestedName}
+                        className="w-full text-left px-2.5 py-1 bg-rose-900/60 hover:bg-rose-800 text-rose-100 border border-rose-600/70 rounded-lg text-[11px] font-semibold flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <span>✨ Clique para formatar automaticamente: <strong>"{studentNameValidation.suggestedName}"</strong></span>
+                        <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0 ml-1" />
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {hasStartedTypingName && studentNameValidation.isValid && (
+                  <p className="text-[11px] text-emerald-400 mt-1 flex items-center space-x-1 font-medium">
+                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Nome completo e formato correto (Maiúsculas e minúsculas)</span>
+                  </p>
+                )}
+              </>
+            )}
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Nome do Aluno(a)
-            </label>
-            <input
-              type="text"
-              name="nomeAluno"
-              id="field_tcc_aluno_nome"
-              autoComplete="one-time-code"
-              autoCorrect="off"
-              spellCheck="false"
-              data-lpignore="true"
-              data-form-type="other"
-              value={formData.nomeAluno || ''}
-              onChange={handleChange}
-              placeholder="Digite o nome completo do aluno(a)"
-              className="w-full bg-[#0b1325] text-white border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder:text-blue-400/70"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Curso
+            <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+              <span>Curso</span>
+              {!isTituloPreenchido && (
+                <span className="text-[10px] text-slate-500 flex items-center space-x-1">
+                  <Lock className="w-3 h-3" />
+                  <span>Bloqueado</span>
+                </span>
+              )}
             </label>
             <select
               name="curso"
               id="field_tcc_curso"
               data-lpignore="true"
+              disabled={!isTituloPreenchido}
               value={formData.curso || ''}
               onChange={handleChange}
-              className="w-full bg-[#0b1325] text-white border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium"
+              className={`w-full text-white border rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                !isTituloPreenchido
+                  ? 'bg-slate-900/60 border-slate-800 text-slate-500 cursor-not-allowed select-none opacity-60'
+                  : 'bg-[#0b1325] border-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer'
+              }`}
             >
               <option value="" className="text-slate-400 bg-slate-900">
                 Selecione o Curso
@@ -514,16 +796,27 @@ export const FichaForm: React.FC<FichaFormProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Professor(a) Orientador(a)
+            <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+              <span>Professor(a) Orientador(a)</span>
+              {!isTituloPreenchido && (
+                <span className="text-[10px] text-slate-500 flex items-center space-x-1">
+                  <Lock className="w-3 h-3" />
+                  <span>Bloqueado</span>
+                </span>
+              )}
             </label>
             <select
               name="professorOrientador"
               id="field_tcc_orientador"
               data-lpignore="true"
+              disabled={!isTituloPreenchido}
               value={formData.professorOrientador || ''}
               onChange={handleProfessorOrientadorChange}
-              className="w-full bg-[#0b1325] text-white border border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer font-medium"
+              className={`w-full text-white border rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                !isTituloPreenchido
+                  ? 'bg-slate-900/60 border-slate-800 text-slate-500 cursor-not-allowed select-none opacity-60'
+                  : 'bg-[#0b1325] border-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer'
+              }`}
             >
               <option value="" disabled className="text-slate-500">
                 Selecione o Professor Orientador
@@ -569,14 +862,23 @@ export const FichaForm: React.FC<FichaFormProps> = ({
 
       {/* 2. Numbered Content Fields */}
       <div className="bg-[#0d1527] p-6 rounded-2xl border border-slate-800 shadow-xl space-y-5">
-        <h3 className="text-sm font-bold text-white uppercase tracking-wide border-b border-slate-800/80 pb-2">
-          Conteúdo do Projeto de TCC
-        </h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+          <h3 className="text-sm font-bold text-white uppercase tracking-wide">
+            Conteúdo do Projeto de TCC
+          </h3>
+          {!isTituloPreenchido && (
+            <span className="text-xs text-amber-400 font-semibold flex items-center space-x-1">
+              <Lock className="w-3.5 h-3.5" />
+              <span>Bloqueado até o preenchimento do Título/Tema</span>
+            </span>
+          )}
+        </div>
 
         {/* 1) Situação-problema */}
         <div>
-          <label className="block text-xs font-bold text-slate-300 mb-1">
-            1) Situação-Problema
+          <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center justify-between">
+            <span>1) Situação-Problema</span>
+            {!isTituloPreenchido && <Lock className="w-3.5 h-3.5 text-slate-500" />}
           </label>
           <p className="text-[11px] text-slate-400 mb-2">
             Descreva a contextualização e a problemática central investigada no TCC.
@@ -589,18 +891,28 @@ export const FichaForm: React.FC<FichaFormProps> = ({
             spellCheck="false"
             data-lpignore="true"
             data-form-type="other"
+            disabled={!isTituloPreenchido}
             value={formData.situacaoProblema}
             onChange={handleChange}
             rows={4}
-            placeholder="Digite aqui a situação-problema do TCC: apresente a contextualização do tema, a justificativa e o problema central a ser investigado..."
-            className="w-full bg-[#0b1325] text-white border border-slate-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder:text-slate-500"
+            placeholder={
+              !isTituloPreenchido
+                ? '🔒 Preencha o Título do TCC acima para liberar o preenchimento da situação-problema...'
+                : 'Digite aqui a situação-problema do TCC: apresente a contextualização do tema, a justificativa e o problema central a ser investigado...'
+            }
+            className={`w-full text-white border rounded-lg p-3 text-sm transition-all placeholder:text-slate-500 ${
+              !isTituloPreenchido
+                ? 'bg-slate-900/60 border-slate-800 text-slate-500 cursor-not-allowed select-none opacity-60'
+                : 'bg-[#0b1325] border-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+            }`}
           />
         </div>
 
         {/* 2) Hipótese */}
         <div>
-          <label className="block text-xs font-bold text-slate-300 mb-1">
-            2) Hipótese
+          <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center justify-between">
+            <span>2) Hipótese</span>
+            {!isTituloPreenchido && <Lock className="w-3.5 h-3.5 text-slate-500" />}
           </label>
           <p className="text-[11px] text-slate-400 mb-2">
             Especifique a hipótese proposta ou premissa a ser testada/desenvolvida.
@@ -613,18 +925,28 @@ export const FichaForm: React.FC<FichaFormProps> = ({
             spellCheck="false"
             data-lpignore="true"
             data-form-type="other"
+            disabled={!isTituloPreenchido}
             value={formData.hipotese}
             onChange={handleChange}
             rows={4}
-            placeholder="Digite aqui a hipótese do TCC: apresente a premissa, suposição teórica ou solução esperada para resolver a situação-problema..."
-            className="w-full bg-[#0b1325] text-white border border-slate-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder:text-slate-500"
+            placeholder={
+              !isTituloPreenchido
+                ? '🔒 Preencha o Título do TCC acima para liberar o preenchimento da hipótese...'
+                : 'Digite aqui a hipótese do TCC: apresente a premissa, suposição teórica ou solução esperada para resolver a situação-problema...'
+            }
+            className={`w-full text-white border rounded-lg p-3 text-sm transition-all placeholder:text-slate-500 ${
+              !isTituloPreenchido
+                ? 'bg-slate-900/60 border-slate-800 text-slate-500 cursor-not-allowed select-none opacity-60'
+                : 'bg-[#0b1325] border-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+            }`}
           />
         </div>
 
         {/* 3) Referências Bibliográficas */}
         <div>
-          <label className="block text-xs font-bold text-slate-300 mb-1">
-            3) Referências Bibliográficas
+          <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center justify-between">
+            <span>3) Referências Bibliográficas</span>
+            {!isTituloPreenchido && <Lock className="w-3.5 h-3.5 text-slate-500" />}
           </label>
           <p className="text-[11px] text-slate-400 mb-2">
             Liste as referências bibliográficas iniciais utilizadas (livros, artigos, normas ABNT).
@@ -637,11 +959,20 @@ export const FichaForm: React.FC<FichaFormProps> = ({
             spellCheck="false"
             data-lpignore="true"
             data-form-type="other"
+            disabled={!isTituloPreenchido}
             value={formData.bibliografia}
             onChange={handleChange}
             rows={4}
-            placeholder="Digite aqui as referências bibliográficas iniciais conforme as normas da ABNT (livros, artigos científicos, teses, legislação, etc.)..."
-            className="w-full bg-[#0b1325] text-white border border-slate-700 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-xs placeholder:text-slate-500"
+            placeholder={
+              !isTituloPreenchido
+                ? '🔒 Preencha o Título do TCC acima para liberar o preenchimento das referências bibliográficas...'
+                : 'Digite aqui as referências bibliográficas iniciais conforme as normas da ABNT (livros, artigos científicos, teses, legislação, etc.)...'
+            }
+            className={`w-full text-white border rounded-lg p-3 text-sm font-mono text-xs transition-all placeholder:text-slate-500 ${
+              !isTituloPreenchido
+                ? 'bg-slate-900/60 border-slate-800 text-slate-500 cursor-not-allowed select-none opacity-60'
+                : 'bg-[#0b1325] border-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+            }`}
           />
         </div>
       </div>
