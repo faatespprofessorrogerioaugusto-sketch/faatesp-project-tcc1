@@ -57,13 +57,9 @@ function getPredefinedNameForEmail(email: string, role: UserRole): string {
   ) {
     return role === 'orientador' ? 'Profa. Marinês Borba' : 'Marines Rodrigues de Borba';
   }
-  // Generate friendly name from email username part for alunos
-  const username = email.split('@')[0] || 'Aluno';
-  return username
-    .split(/[._-]/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
+  // For students without predefined registration, do NOT auto-generate from email prefix.
+  // The name must be left blank so the student is obligated to enter their full name with proper title case.
+  return '';
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
@@ -106,7 +102,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       id: stableUserId,
       name: userName,
       email: cleanEmail,
-      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userName)}`,
+      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userName || cleanEmail)}`,
       role: role,
       cursoDefault: ''
     };

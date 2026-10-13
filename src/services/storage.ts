@@ -300,18 +300,33 @@ export const storageService = {
         let changed = false;
         const cleaned = parsed.map((f: FichaTCC) => {
           let cursoVal = f.curso || '';
+          let nomeVal = f.nomeAluno || '';
+
+          // If the student name was auto-populated from email username (e.g. "Neuzasofia555", "Antoniacapristanodasilvasantos"),
+          // or is identical to email prefix, clear it so it's blank for mandatory user input with proper title-case.
+          if (nomeVal && f.usuarioEmail) {
+            const rawPrefix = f.usuarioEmail.split('@')[0];
+            const cleanPrefix = rawPrefix.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            const cleanNome = nomeVal.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            if (cleanNome === cleanPrefix || (!nomeVal.includes(' ') && cleanPrefix.includes(cleanNome))) {
+              nomeVal = '';
+              changed = true;
+            }
+          }
+
           // If sheet is a blank draft, new ficha or legacy template without title & student, guarantee curso is empty
-          if (!f.tituloTrabalho && !f.nomeAluno) {
+          if (!f.tituloTrabalho && !nomeVal) {
             cursoVal = '';
           }
           if (f.id === 'ficha-faatesp-001' && !f.tituloTrabalho) {
             cursoVal = '';
           }
-          if (f.curso !== cursoVal) {
+          if (f.curso !== cursoVal || f.nomeAluno !== nomeVal) {
             changed = true;
           }
           return {
             ...f,
+            nomeAluno: nomeVal,
             curso: cursoVal,
             semestre: '7º Semestre 2026/2',
             logoUrl: institutionalLogo || f.logoUrl || ''
@@ -397,7 +412,8 @@ export const storageService = {
       found = this.createNewFicha(user);
       found.usuarioEmail = user.email;
       found.usuarioId = user.id;
-      if (user.name) {
+      // Do NOT pre-fill student name from email username. Leave empty for mandatory student input.
+      if (user.role === 'orientador' && user.name) {
         found.nomeAluno = user.name;
       }
       this.saveFicha(found);
@@ -410,10 +426,6 @@ export const storageService = {
       }
       if (found.usuarioId !== user.id) {
         found.usuarioId = user.id;
-        needsUpdate = true;
-      }
-      if (!found.nomeAluno && user.name) {
-        found.nomeAluno = user.name;
         needsUpdate = true;
       }
       if (found.id === 'ficha-faatesp-001' && !found.tituloTrabalho) {

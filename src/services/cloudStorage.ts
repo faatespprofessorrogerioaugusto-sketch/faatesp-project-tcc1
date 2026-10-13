@@ -68,11 +68,24 @@ export const cloudStorageService = {
           return tB - tA;
         });
 
-        // Also update local cache for offline/fast load
-        if (remoteFichas.length > 0) {
-          localStorage.setItem('pm_faatesp_fichas', JSON.stringify(remoteFichas));
+        // Also update local cache for offline/fast load and clean any email-derived student names
+        const sanitizedRemote = remoteFichas.map(f => {
+          let nomeVal = f.nomeAluno || '';
+          if (nomeVal && f.usuarioEmail) {
+            const rawPrefix = f.usuarioEmail.split('@')[0];
+            const cleanPrefix = rawPrefix.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            const cleanNome = nomeVal.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            if (cleanNome === cleanPrefix || (!nomeVal.includes(' ') && cleanPrefix.includes(cleanNome))) {
+              nomeVal = '';
+            }
+          }
+          return { ...f, nomeAluno: nomeVal };
+        });
+
+        if (sanitizedRemote.length > 0) {
+          localStorage.setItem('pm_faatesp_fichas', JSON.stringify(sanitizedRemote));
         }
-        callback(remoteFichas);
+        callback(sanitizedRemote);
       },
       (error) => {
         console.warn('Firestore subscription fallback to local storage:', error);
@@ -99,8 +112,22 @@ export const cloudStorageService = {
           const tB = new Date(b.ultimaAtualizacao || b.dataCriacao || 0).getTime();
           return tB - tA;
         });
-        localStorage.setItem('pm_faatesp_fichas', JSON.stringify(remoteFichas));
-        return remoteFichas;
+
+        const sanitizedRemote = remoteFichas.map(f => {
+          let nomeVal = f.nomeAluno || '';
+          if (nomeVal && f.usuarioEmail) {
+            const rawPrefix = f.usuarioEmail.split('@')[0];
+            const cleanPrefix = rawPrefix.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            const cleanNome = nomeVal.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            if (cleanNome === cleanPrefix || (!nomeVal.includes(' ') && cleanPrefix.includes(cleanNome))) {
+              nomeVal = '';
+            }
+          }
+          return { ...f, nomeAluno: nomeVal };
+        });
+
+        localStorage.setItem('pm_faatesp_fichas', JSON.stringify(sanitizedRemote));
+        return sanitizedRemote;
       }
       return storageService.getFichas();
     } catch (e) {
@@ -195,12 +222,13 @@ export const cloudStorageService = {
         found = storageService.createNewFicha(user);
         found.usuarioEmail = user.email;
         found.usuarioId = user.id;
-        if (user.name) {
+        // Do NOT auto-fill student name from email username. Leave empty for mandatory student input.
+        if (user.role === 'orientador' && user.name) {
           found.nomeAluno = user.name;
         }
         await this.saveFicha(found);
       } else {
-        // Guarantee user's email, ID and name are securely bound to their ficha
+        // Guarantee user's email, ID are securely bound to their ficha
         let needsUpdate = false;
         if (found.usuarioEmail !== user.email) {
           found.usuarioEmail = user.email;
@@ -208,10 +236,6 @@ export const cloudStorageService = {
         }
         if (found.usuarioId !== user.id) {
           found.usuarioId = user.id;
-          needsUpdate = true;
-        }
-        if (!found.nomeAluno && user.name) {
-          found.nomeAluno = user.name;
           needsUpdate = true;
         }
         if (needsUpdate) {

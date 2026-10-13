@@ -104,7 +104,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
               <span>Plataforma Acadêmica FAATESP</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Olá, {user.name}!
+              Olá, {activeFicha?.nomeAluno || user.name || 'Aluno(a)'}!
             </h1>
             <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
               Bem-vindo ao <strong>Project Maker - Faatesp</strong>. Preencha, acompanhe, salve e exporte sua ficha de acompanhamento de atividades presenciais de TCC.
