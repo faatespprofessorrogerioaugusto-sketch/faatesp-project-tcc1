@@ -186,9 +186,11 @@ export const FichaForm: React.FC<FichaFormProps> = ({
     }
   };
 
-  // Sync state ONLY when switching to a completely different ficha
+  // Sync state when switching to a different ficha or when real data arrives
   useEffect(() => {
-    if (ficha.id !== formData.id) {
+    const isFormDataEmpty = !formData.tituloTrabalho && !formData.nomeAluno;
+    const hasIncomingData = Boolean(ficha.tituloTrabalho || ficha.nomeAluno);
+    if (ficha.id !== formData.id || (isFormDataEmpty && hasIncomingData)) {
       const instLogo = storageService.getInstitutionalLogo() || ficha.logoUrl || '';
       const prof = ficha.professorOrientador || (currentUser.role === 'orientador' ? currentUser.name : '');
       const sig = ficha.assinaturaUrl || getSignatureForProfessor(prof);
@@ -204,7 +206,7 @@ export const FichaForm: React.FC<FichaFormProps> = ({
       lastSavedJson.current = JSON.stringify(ficha);
       setAutoSaveStatus('Sincronizado');
     }
-  }, [ficha.id]);
+  }, [ficha.id, ficha.tituloTrabalho, ficha.nomeAluno]);
 
   // Debounced local auto-save without infinite render loops
   const lastSavedJson = useRef<string>(JSON.stringify(formData));

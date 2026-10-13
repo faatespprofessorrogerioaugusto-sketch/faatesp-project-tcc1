@@ -57,8 +57,23 @@ function getPredefinedNameForEmail(email: string, role: UserRole): string {
   ) {
     return role === 'orientador' ? 'Profa. Marinês Borba' : 'Marines Rodrigues de Borba';
   }
-  // For students without predefined registration, do NOT auto-generate from email prefix.
-  // The name must be left blank so the student is obligated to enter their full name with proper title case.
+  if (norm === 'neuzasofia555@gmail.com') {
+    return 'Marineuza Lina de Souza';
+  }
+  if (
+    norm === 'antoniacapristanodasilvasantos@gmail.com' ||
+    norm === 'antoniacapristano@gmail.com'
+  ) {
+    return 'Antonia Capristano da Silva Santos';
+  }
+  if (norm === 'mariana.costa@gmail.com') {
+    return 'Mariana Costa Ribeiro';
+  }
+  if (norm === 'gabriel.oliveira@gmail.com') {
+    return 'Gabriel Oliveira Santos';
+  }
+  // For other students without predefined registration, leave blank
+  // so the student is obligated to enter their full name with proper title case.
   return '';
 }
 

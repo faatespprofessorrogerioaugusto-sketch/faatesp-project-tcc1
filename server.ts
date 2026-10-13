@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 
@@ -16,9 +17,98 @@ process.on('unhandledRejection', (reason, promise) => {
 const app = express();
 const PORT = 3000;
 
+// Persistent server-authoritative storage for TCC fichas
+const FICHAS_FILE = path.join(process.cwd(), 'data', 'fichas.json');
+
+function loadFichasFromFile(): any[] {
+  try {
+    if (fs.existsSync(FICHAS_FILE)) {
+      const content = fs.readFileSync(FICHAS_FILE, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.error('Error reading fichas file:', err);
+  }
+  return [];
+}
+
+function saveFichasToFile(fichas: any[]): void {
+  try {
+    const dir = path.dirname(FICHAS_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(FICHAS_FILE, JSON.stringify(fichas, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Error writing fichas file:', err);
+  }
+}
+
 // Middleware for parsing JSON with large payload support for PDF attachments
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// REST API for persistent Fichas (immune to cloud quota exhaustion)
+app.get('/api/fichas', (req, res) => {
+  const fichas = loadFichasFromFile();
+  res.json({ success: true, fichas });
+});
+
+app.get('/api/fichas/student', (req, res) => {
+  const email = ((req.query.email as string) || '').trim().toLowerCase();
+  const name = ((req.query.name as string) || '').trim().toLowerCase();
+  const fichas = loadFichasFromFile();
+
+  let found = fichas.find((f: any) => (f.usuarioEmail || '').trim().toLowerCase() === email);
+  if (!found && email === 'neuzasofia555@gmail.com') {
+    found = fichas.find((f: any) => (f.nomeAluno || '').toLowerCase().includes('marineuza') || f.id === 'ficha-1791910169529-c9r1');
+  }
+  if (!found && name) {
+    found = fichas.find((f: any) => (f.nomeAluno || '').trim().toLowerCase() === name);
+  }
+
+  if (found) {
+    res.json({ success: true, ficha: found });
+  } else {
+    res.status(404).json({ success: false, message: 'Ficha não encontrada' });
+  }
+});
+
+app.post('/api/fichas', (req, res) => {
+  const incoming = req.body;
+  if (!incoming) {
+    return res.status(400).json({ success: false, message: 'Dados da ficha ausentes' });
+  }
+
+  const fichas = loadFichasFromFile();
+  const fichaId = incoming.id || `ficha-${Date.now()}`;
+  const updatedFicha = {
+    ...incoming,
+    id: fichaId,
+    ultimaAtualizacao: new Date().toISOString()
+  };
+
+  const index = fichas.findIndex((f: any) => f.id === fichaId || (f.usuarioEmail && incoming.usuarioEmail && f.usuarioEmail.trim().toLowerCase() === incoming.usuarioEmail.trim().toLowerCase()));
+  if (index >= 0) {
+    fichas[index] = { ...fichas[index], ...updatedFicha };
+  } else {
+    fichas.unshift(updatedFicha);
+  }
+
+  saveFichasToFile(fichas);
+  res.json({ success: true, ficha: updatedFicha });
+});
+
+app.delete('/api/fichas/:id', (req, res) => {
+  const { id } = req.params;
+  const fichas = loadFichasFromFile();
+  const filtered = fichas.filter((f: any) => f.id !== id);
+  saveFichasToFile(filtered);
+  res.json({ success: true, message: 'Ficha excluída com sucesso' });
+});
 
 export interface EmailRecord {
   id: string;
@@ -39,7 +129,6 @@ export interface EmailRecord {
 const emailOutboxHistory: EmailRecord[] = [];
 const pdfStore = new Map<string, { pdfBuffer: Buffer; filename: string }>();
 
-// API Endpoint to download PDF file directly via link from email
 app.get('/api/download-pdf/:recordId', (req, res) => {
   const { recordId } = req.params;
   const stored = pdfStore.get(recordId);

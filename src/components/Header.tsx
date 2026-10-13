@@ -125,7 +125,7 @@ export const Header: React.FC<HeaderProps> = ({
               )}
               <div className="hidden lg:block text-left">
                 <p className="text-xs font-semibold text-slate-200 leading-tight truncate max-w-[140px]">
-                  {user.name || user.email.split('@')[0]}
+                  {user.name || (user.role === 'orientador' ? 'Orientador' : 'Aluno(a)')}
                 </p>
                 <p className="text-[10px] text-slate-400 truncate max-w-[140px]">{user.email}</p>
               </div>

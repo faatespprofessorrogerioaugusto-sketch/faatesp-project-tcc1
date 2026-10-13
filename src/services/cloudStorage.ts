@@ -53,51 +53,71 @@ export const cloudStorageService = {
    * Sync from Firestore or subscribe in real time
    */
   subscribeToFichas(callback: (fichas: FichaTCC[]) => void): Unsubscribe {
-    const colRef = collection(db, FICHAS_COLLECTION);
-    return onSnapshot(
-      colRef,
-      (snapshot) => {
-        const remoteFichas: FichaTCC[] = [];
-        snapshot.forEach((docSnap) => {
-          remoteFichas.push({ ...(docSnap.data() as FichaTCC), id: docSnap.id });
-        });
-
-        remoteFichas.sort((a, b) => {
-          const tA = new Date(a.ultimaAtualizacao || a.dataCriacao || 0).getTime();
-          const tB = new Date(b.ultimaAtualizacao || b.dataCriacao || 0).getTime();
-          return tB - tA;
-        });
-
-        // Also update local cache for offline/fast load and clean any email-derived student names
-        const sanitizedRemote = remoteFichas.map(f => {
-          let nomeVal = f.nomeAluno || '';
-          if (nomeVal && f.usuarioEmail) {
-            const rawPrefix = f.usuarioEmail.split('@')[0];
-            const cleanPrefix = rawPrefix.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-            const cleanNome = nomeVal.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-            if (cleanNome === cleanPrefix || (!nomeVal.includes(' ') && cleanPrefix.includes(cleanNome))) {
-              nomeVal = '';
-            }
-          }
-          return { ...f, nomeAluno: nomeVal };
-        });
-
-        if (sanitizedRemote.length > 0) {
-          localStorage.setItem('pm_faatesp_fichas', JSON.stringify(sanitizedRemote));
-        }
-        callback(sanitizedRemote);
-      },
-      (error) => {
-        console.warn('Firestore subscription fallback to local storage:', error);
-        callback(storageService.getFichas());
+    // Initial load from server API immediately
+    this.getFichas().then((fichas) => {
+      if (fichas && fichas.length > 0) {
+        callback(fichas);
       }
-    );
+    }).catch(() => {});
+
+    try {
+      const colRef = collection(db, FICHAS_COLLECTION);
+      return onSnapshot(
+        colRef,
+        (snapshot) => {
+          const remoteFichas: FichaTCC[] = [];
+          snapshot.forEach((docSnap) => {
+            remoteFichas.push({ ...(docSnap.data() as FichaTCC), id: docSnap.id });
+          });
+
+          if (remoteFichas.length > 0) {
+            remoteFichas.sort((a, b) => {
+              const tA = new Date(a.ultimaAtualizacao || a.dataCriacao || 0).getTime();
+              const tB = new Date(b.ultimaAtualizacao || b.dataCriacao || 0).getTime();
+              return tB - tA;
+            });
+
+            localStorage.setItem('pm_faatesp_fichas', JSON.stringify(remoteFichas));
+            callback(remoteFichas);
+          }
+        },
+        () => {
+          // Fall back seamlessly to server & local storage without errors
+          this.getFichas().then(callback).catch(() => callback(storageService.getFichas()));
+        }
+      );
+    } catch {
+      // In case Firestore fails to initialize or quota is exhausted
+      this.getFichas().then(callback).catch(() => callback(storageService.getFichas()));
+      return () => {};
+    }
   },
 
   /**
-   * Fetch all fichas from Firestore
+   * Fetch all fichas from server backend, Firestore, and local cache
    */
   async getFichas(): Promise<FichaTCC[]> {
+    // 1. Try server-authoritative API
+    try {
+      const res = await fetch('/api/fichas');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.fichas) && data.fichas.length > 0) {
+          const serverFichas: FichaTCC[] = data.fichas;
+          serverFichas.sort((a, b) => {
+            const tA = new Date(a.ultimaAtualizacao || a.dataCriacao || 0).getTime();
+            const tB = new Date(b.ultimaAtualizacao || b.dataCriacao || 0).getTime();
+            return tB - tA;
+          });
+          localStorage.setItem('pm_faatesp_fichas', JSON.stringify(serverFichas));
+          return serverFichas;
+        }
+      }
+    } catch {
+      // Server fetch failed, continue to fallbacks
+    }
+
+    // 2. Try Firestore if available
     try {
       const colRef = collection(db, FICHAS_COLLECTION);
       const snapshot = await getDocs(colRef);
@@ -113,63 +133,73 @@ export const cloudStorageService = {
           return tB - tA;
         });
 
-        const sanitizedRemote = remoteFichas.map(f => {
-          let nomeVal = f.nomeAluno || '';
-          if (nomeVal && f.usuarioEmail) {
-            const rawPrefix = f.usuarioEmail.split('@')[0];
-            const cleanPrefix = rawPrefix.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-            const cleanNome = nomeVal.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-            if (cleanNome === cleanPrefix || (!nomeVal.includes(' ') && cleanPrefix.includes(cleanNome))) {
-              nomeVal = '';
-            }
-          }
-          return { ...f, nomeAluno: nomeVal };
-        });
-
-        localStorage.setItem('pm_faatesp_fichas', JSON.stringify(sanitizedRemote));
-        return sanitizedRemote;
+        localStorage.setItem('pm_faatesp_fichas', JSON.stringify(remoteFichas));
+        return remoteFichas;
       }
-      return storageService.getFichas();
-    } catch (e) {
-      console.warn('Error fetching from cloud, using local cache:', e);
-      return storageService.getFichas();
+    } catch {
+      // Quota limit or offline, fall back to local storage
     }
+
+    // 3. Fallback to localStorage and pre-registered data
+    return storageService.getFichas();
   },
 
   /**
-   * Save or update ficha in Firestore and local
+   * Save or update ficha in server, Firestore and local
    */
   async saveFicha(ficha: FichaTCC): Promise<void> {
-    storageService.saveFicha(ficha); // update local instantly
+    const fichaId = ficha.id || `ficha-${Date.now()}`;
+    const dataToSave: FichaTCC = {
+      ...ficha,
+      id: fichaId,
+      ultimaAtualizacao: new Date().toISOString()
+    };
+
+    // 1. Update local storage immediately
+    storageService.saveFicha(dataToSave);
+
+    // 2. Save to persistent server API
     try {
-      const fichaId = ficha.id || `ficha-${Date.now()}`;
-      const fichaDocRef = doc(db, FICHAS_COLLECTION, fichaId);
-      const dataToSave = sanitizeForFirestore({
-        ...ficha,
-        id: fichaId,
-        ultimaAtualizacao: new Date().toISOString()
+      await fetch('/api/fichas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dataToSave)
       });
-      await setDoc(fichaDocRef, dataToSave, { merge: true });
     } catch (e) {
-      console.error('Error saving ficha to Firestore:', e);
+      console.warn('Server save warning:', e);
+    }
+
+    // 3. Sync to Firestore in background without breaking if quota is exceeded
+    try {
+      const fichaDocRef = doc(db, FICHAS_COLLECTION, fichaId);
+      const sanitized = sanitizeForFirestore(dataToSave);
+      await setDoc(fichaDocRef, sanitized, { merge: true });
+    } catch (e) {
+      // Swallowed: Firestore quota or connection issue must never break saving for users
+      console.warn('Firestore sync note (background):', e);
     }
   },
 
   /**
-   * Delete ficha in Firestore and local
+   * Delete ficha in server, Firestore and local
    */
   async deleteFicha(id: string): Promise<void> {
     storageService.deleteFicha(id); // update local instantly
     try {
+      await fetch(`/api/fichas/${id}`, { method: 'DELETE' });
+    } catch (e) {
+      console.warn('Server delete error:', e);
+    }
+    try {
       const fichaDocRef = doc(db, FICHAS_COLLECTION, id);
       await deleteDoc(fichaDocRef);
     } catch (e) {
-      console.error('Error deleting ficha from Firestore:', e);
+      console.warn('Firestore delete note:', e);
     }
   },
 
   /**
-   * Retrieve student ficha (from cloud or fallback)
+   * Retrieve student ficha (from server, cloud or fallback)
    */
   async getStudentFicha(user: User): Promise<FichaTCC> {
     try {
@@ -182,12 +212,30 @@ export const cloudStorageService = {
         (f) => f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() === userEmailNorm
       );
 
-      // 2. Direct match by student user ID
+      // 2. Pre-registered student mapping
+      if (!found && userEmailNorm === 'neuzasofia555@gmail.com') {
+        found = all.find(
+          (f) =>
+            f.id === 'ficha-1791910169529-c9r1' ||
+            (f.nomeAluno && normalizePersonName(f.nomeAluno).includes('marineuza')) ||
+            (f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() === 'neuzasofia555@gmail.com')
+        );
+      }
+
+      if (!found && userEmailNorm.includes('antoniacapristano')) {
+        found = all.find(
+          (f) =>
+            f.id === 'ficha-faatesp-004' ||
+            (f.nomeAluno && normalizePersonName(f.nomeAluno).includes('antonia'))
+        );
+      }
+
+      // 3. Direct match by student user ID
       if (!found) {
         found = all.find((f) => f.usuarioId === userId);
       }
 
-      // 3. Match by student name with accent and space normalization (NEVER match a ficha belonging to another email)
+      // 4. Match by student name with accent and space normalization
       if (!found && user.name) {
         const normTarget = normalizePersonName(user.name);
         if (normTarget.length >= 4) {
@@ -198,21 +246,6 @@ export const cloudStorageService = {
             const normFicha = normalizePersonName(f.nomeAluno);
             if (normFicha.length < 4) return false;
             return normFicha === normTarget || normFicha.includes(normTarget) || normTarget.includes(normFicha);
-          });
-        }
-      }
-
-      // 4. Match by email username prefix against student name (NEVER match a ficha belonging to another email)
-      if (!found && user.email) {
-        const emailPrefix = normalizePersonName(user.email.split('@')[0]);
-        if (emailPrefix.length >= 4) {
-          found = all.find((f) => {
-            if (f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() !== userEmailNorm) {
-              return false;
-            }
-            const normFicha = normalizePersonName(f.nomeAluno);
-            if (normFicha.length < 4) return false;
-            return normFicha === emailPrefix || normFicha.includes(emailPrefix) || emailPrefix.includes(normFicha);
           });
         }
       }

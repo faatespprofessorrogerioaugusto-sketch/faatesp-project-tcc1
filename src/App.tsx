@@ -138,12 +138,12 @@ export default function App() {
     return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
   }
 
-  // Safe resolution of current ficha: NEVER fall back to another student's ficha for an aluno!
+  // Safe resolution of current ficha: NEVER fall back to a blank ficha or another student's ficha for an aluno!
   const userEmailNorm = (user.email || '').trim().toLowerCase();
   const currentFicha = activeFicha || (
     user.role === 'aluno'
-      ? (fichas.find(f => (f.usuarioEmail || '').trim().toLowerCase() === userEmailNorm) ?? storageService.createNewFicha(user))
-      : (fichas.length > 0 ? fichas[0] : storageService.createNewFicha(user))
+      ? (fichas.find(f => (f.usuarioEmail || '').trim().toLowerCase() === userEmailNorm) ?? storageService.getStudentFicha(user))
+      : (fichas.length > 0 ? fichas[0] : storageService.getStudentFicha(user))
   );
 
   return (
