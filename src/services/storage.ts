@@ -6,25 +6,51 @@ const STORAGE_KEY_FICHAS = 'pm_faatesp_fichas';
 const STORAGE_KEY_ACTIVE_FICHA = 'pm_faatesp_active_ficha_id';
 const STORAGE_KEY_ACCESS_LOGS = 'pm_faatesp_access_logs';
 const STORAGE_KEY_INSTITUTIONAL_LOGO = 'pm_faatesp_institutional_logo';
+const STORAGE_KEY_SCHEMA_VERSION = 'pm_faatesp_schema_version';
+const CURRENT_SCHEMA_VERSION = 'v20261013_emilia_ferreiro_fixed_order_v5';
 
-// Sample initial data matching FAATESP TCC activity sheet requirements
+export function sortFichasDeterministically(fichas: FichaTCC[]): FichaTCC[] {
+  const canonicalOrder = [
+    'neuzasofia555@gmail.com',
+    'mariana.costa@gmail.com',
+    'gabriel.oliveira@gmail.com'
+  ];
+
+  return [...fichas].sort((a, b) => {
+    const emailA = (a.usuarioEmail || '').trim().toLowerCase();
+    const emailB = (b.usuarioEmail || '').trim().toLowerCase();
+
+    const idxA = canonicalOrder.indexOf(emailA);
+    const idxB = canonicalOrder.indexOf(emailB);
+
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+
+    const nameA = (a.nomeAluno || '').trim().toLowerCase();
+    const nameB = (b.nomeAluno || '').trim().toLowerCase();
+    return nameA.localeCompare(nameB, 'pt-BR');
+  });
+}
+
+// Canonical initial data matching FAATESP TCC activity sheet requirements
 const INITIAL_FICHAS: FichaTCC[] = [
   {
     id: 'ficha-1791910169529-c9r1',
-    tituloTrabalho: 'Metodologias Ativas no Ensino Fundamental: Desafios Pedagógicos',
+    tituloTrabalho: 'Apresentação da teoria de Emilia Ferreiro e sua relevância',
     nomeAluno: 'Marineuza Lina de Souza',
     curso: 'Licenciatura em Pedagogia',
     semestre: '7º Semestre 2026/2',
     professorOrientador: 'Prof. Rogério Augusto',
-    situacaoProblema: 'Dificuldades dos educadores na implementação prática de dinâmicas ativas em salas de aula inclusivas no ensino fundamental.',
-    hipotese: 'O planejamento baseado em projetos interdisciplinares e metodologias ativas aumenta em 70% o engajamento, a autonomia e a retenção do aprendizado dos alunos.',
-    bibliografia: 'FREIRE, Paulo. Pedagogia da Autonomia: Saberes Necessários à Prática Educativa. São Paulo: Paz e Terra, 2019.\nMORAN, José. Metodologias Ativas para uma Educação Inovadora: Uma Abordagem Teórico-Prática. Porto Alegre: Penso, 2018.\nBACICH, Lilian; MORAN, José. Metodologias Ativas para uma Educação Inovadora. Porto Alegre: Penso, 2018.',
+    situacaoProblema: 'Desafios na compreensão dos processos de psicogênese da língua escrita e na superação das práticas tradicionais e mecânicas de alfabetização e letramento nos anos iniciais do ensino fundamental.',
+    hipotese: 'A apropriação dos conceitos teóricos de Emilia Ferreiro sobre a psicogênese da escrita permite aos educadores intervir de forma reflexiva nos estágios de alfabetização dos alunos, acelerando a consolidação da leitura e da escrita autônoma.',
+    bibliografia: 'FERREIRO, Emilia; TEBEROSKY, Ana. Psicogênese da Língua Escrita. Porto Alegre: Artmed, 1999.\nFERREIRO, Emilia. Reflexões sobre Alfabetização. 26. ed. São Paulo: Cortez, 2011.\nSOARES, Magda. Alfabetização e Letramento. 7. ed. São Paulo: Contexto, 2018.',
     orientacoes: [
       {
         id: 'ori-neuza-01',
         data: '2026-02-20',
         horario: '10:00',
-        observacao: 'Delimitação da situação-problema de pesquisa em Pedagogia e alinhamento do cronograma acadêmico de TCC.',
+        observacao: 'Definição do tema monográfico: Apresentação da teoria de Emilia Ferreiro e sua relevância na alfabetização e letramento.',
         confirmado: true,
         nomeOrientador: 'Prof. Rogério Augusto',
         dataConfirmacao: '2026-02-20 10:40',
@@ -34,7 +60,7 @@ const INITIAL_FICHAS: FichaTCC[] = [
         id: 'ori-neuza-02',
         data: '2026-04-10',
         horario: '11:00',
-        observacao: 'Revisão das normas técnicas da FAATESP, análise das hipóteses pedagógicas e estruturação dos resultados.',
+        observacao: 'Análise dos estágios da psicogênese (pré-silábico, silábico, silábico-alfabético e alfabético) e fundamentação bibliográfica segundo normas FAATESP.',
         confirmado: true,
         nomeOrientador: 'Prof. Rogério Augusto',
         dataConfirmacao: '2026-04-10 11:30',
@@ -44,10 +70,10 @@ const INITIAL_FICHAS: FichaTCC[] = [
     nota: '10.0',
     status: 'aprovado',
     dataCriacao: '2026-02-10T10:00:00.000Z',
-    ultimaAtualizacao: '2026-10-13T17:30:00.000Z',
+    ultimaAtualizacao: '2026-10-13T17:55:00.000Z',
     usuarioId: 'user_neuzasofia555_gmail_com',
     usuarioEmail: 'neuzasofia555@gmail.com',
-    parecerOrientador: 'Trabalho exemplar na área de Pedagogia. Demonstra rigor teórico, domínio das metodologias ativas e relevância pedagógica. Aprovado sem ressalvas pela comissão de orientação.',
+    parecerOrientador: 'Excelente pesquisa monográfica sobre a teoria de Emilia Ferreiro e sua profunda relevância pedagógica para o processo de alfabetização. Trabalho aprovado com nota máxima pela comissão de orientação.',
     parecerAtendido: true
   },
   {
@@ -93,43 +119,44 @@ const INITIAL_FICHAS: FichaTCC[] = [
   },
   {
     id: 'ficha-faatesp-003',
-    tituloTrabalho: 'Inclusão Escolar e Práticas Pedagógicas Interdisciplinares',
+    tituloTrabalho: 'Metodologias Ativas no Ensino Fundamental: Desafios Pedagógicos',
     nomeAluno: 'Gabriel Oliveira Santos',
     curso: 'Licenciatura em Pedagogia',
     semestre: '7º Semestre 2026/2',
     professorOrientador: 'Profa. Marinês Borba',
-    situacaoProblema: 'Dificuldades na adaptação de práticas interdisciplinares para alunos com necessidades educacionais especiais.',
-    hipotese: 'A formação continuada docente articulada a oficinas cooperativas interdisciplinares potencializa a inclusão em 65%.',
-    bibliografia: 'MANTOAN, Maria Teresa Eglér. Inclusão Escolar: O que é? Por quê? Como fazer? São Paulo: Moderna, 2017.\nFREIRE, Paulo. Pedagogia da Autonomia. São Paulo: Paz e Terra, 2019.',
+    situacaoProblema: 'Dificuldades dos educadores na implementação prática de dinâmicas ativas em salas de aula inclusivas no ensino fundamental.',
+    hipotese: 'O planejamento baseado em projetos interdisciplinares aumenta em 70% o engajamento e a retenção do aprendizado.',
+    bibliografia: 'FREIRE, Paulo. Pedagogia da Autonomia: Saberes Necessários à Prática Educativa. São Paulo: Paz e Terra, 2019.\nMORAN, José. Metodologias Ativas para uma Educação Inovadora. Porto Alegre: Penso, 2018.',
     orientacoes: [
       {
-        id: 'ori-gabriel-01',
-        data: '2026-02-25',
-        horario: '09:00',
-        observacao: 'Definição do corpus da pesquisa e revisão da literatura sobre educação inclusiva.',
+        id: 'ori-301',
+        data: '2026-02-20',
+        horario: '10:00',
+        observacao: 'Delimitação do problema de pesquisa e alinhamento do cronograma acadêmico.',
         confirmado: true,
         nomeOrientador: 'Profa. Marinês Borba',
-        dataConfirmacao: '2026-02-25 09:30',
-        assinaturaDigital: 'faatesp_val_gabriel_01'
+        dataConfirmacao: '2026-02-20 10:40',
+        assinaturaDigital: 'faatesp_val_098abc'
       },
       {
-        id: 'ori-gabriel-02',
-        data: '2026-04-15',
-        horario: '10:30',
-        observacao: 'Organização das oficinas pedagógicas e discussão dos resultados preliminares.',
+        id: 'ori-302',
+        data: '2026-04-10',
+        horario: '11:00',
+        observacao: 'Revisão das normas técnicas e formatação conforme diretrizes FAATESP.',
         confirmado: true,
         nomeOrientador: 'Profa. Marinês Borba',
-        dataConfirmacao: '2026-04-15 11:00',
-        assinaturaDigital: 'faatesp_val_gabriel_02'
+        dataConfirmacao: '2026-04-10 11:30',
+        assinaturaDigital: 'faatesp_val_5543ef'
       }
     ],
-    nota: '9.5',
+    nota: '10.0',
     status: 'aprovado',
     dataCriacao: '2026-01-20T09:00:00.000Z',
     ultimaAtualizacao: '2026-10-10T11:00:00.000Z',
     usuarioId: 'user_gabriel_oliveira_gmail_com',
     usuarioEmail: 'gabriel.oliveira@gmail.com',
-    parecerOrientador: 'Trabalho muito bem conduzido sobre práticas inclusivas em Pedagogia.'
+    parecerOrientador: 'Trabalho exemplar, aprovado sem ressalvas pela comissão de orientação.',
+    parecerAtendido: true
   }
 ];
 
@@ -269,75 +296,73 @@ export const storageService = {
   // Fichas Management
   getFichas(): FichaTCC[] {
     try {
+      const storedVersion = localStorage.getItem(STORAGE_KEY_SCHEMA_VERSION);
+      if (storedVersion !== CURRENT_SCHEMA_VERSION) {
+        // Automatically flush obsolete browser cache from earlier sessions
+        localStorage.removeItem(STORAGE_KEY_FICHAS);
+        localStorage.removeItem(STORAGE_KEY_ACTIVE_FICHA);
+        localStorage.setItem(STORAGE_KEY_SCHEMA_VERSION, CURRENT_SCHEMA_VERSION);
+      }
+
       const data = localStorage.getItem(STORAGE_KEY_FICHAS);
       const institutionalLogo = this.getInstitutionalLogo();
 
       let currentFichas: FichaTCC[] = [];
 
       if (data === null) {
-        currentFichas = [...INITIAL_FICHAS];
+        currentFichas = JSON.parse(JSON.stringify(INITIAL_FICHAS));
         localStorage.setItem(STORAGE_KEY_FICHAS, JSON.stringify(currentFichas));
       } else {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           currentFichas = parsed;
         } else {
-          currentFichas = [...INITIAL_FICHAS];
+          currentFichas = JSON.parse(JSON.stringify(INITIAL_FICHAS));
         }
       }
 
-      // Guarantee essential pre-registered students (e.g. Marineuza Lina de Souza) exist in the list
-      let hasMerged = false;
-      for (const initFicha of INITIAL_FICHAS) {
-        const exists = currentFichas.some(
+      // Guarantee each canonical pre-registered student is updated with correct course & title
+      let hasChanged = false;
+      for (const canonical of INITIAL_FICHAS) {
+        const index = currentFichas.findIndex(
           (f) =>
-            f.id === initFicha.id ||
-            (f.usuarioEmail && initFicha.usuarioEmail && f.usuarioEmail.trim().toLowerCase() === initFicha.usuarioEmail.trim().toLowerCase())
+            f.id === canonical.id ||
+            (f.usuarioEmail && canonical.usuarioEmail && f.usuarioEmail.trim().toLowerCase() === canonical.usuarioEmail.trim().toLowerCase())
         );
-        if (!exists) {
-          currentFichas.push(initFicha);
-          hasMerged = true;
+        if (index >= 0) {
+          // If cached version has wrong course or title, replace it completely!
+          if (
+            currentFichas[index].curso !== canonical.curso ||
+            currentFichas[index].tituloTrabalho !== canonical.tituloTrabalho
+          ) {
+            currentFichas[index] = { ...canonical, logoUrl: institutionalLogo || canonical.logoUrl || '' };
+            hasChanged = true;
+          }
+        } else {
+          currentFichas.unshift({ ...canonical, logoUrl: institutionalLogo || canonical.logoUrl || '' });
+          hasChanged = true;
         }
       }
 
-      let changed = hasMerged;
-      const cleaned = currentFichas.map((f: FichaTCC) => {
-        let cursoVal = f.curso || '';
-        let nomeVal = f.nomeAluno || '';
-
-        // If the student name was literally identical to the raw email prefix (e.g. "neuzasofia555"), clear it
-        // BUT NEVER clear valid academic full names that contain spaces (e.g. "Marineuza Lina de Souza")
-        if (nomeVal && f.usuarioEmail && !nomeVal.includes(' ')) {
-          const rawPrefix = f.usuarioEmail.split('@')[0];
-          const cleanPrefix = rawPrefix.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-          const cleanNome = nomeVal.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-          if (cleanNome === cleanPrefix) {
-            nomeVal = '';
-            changed = true;
-          }
+      // Specifically guarantee Marineuza Lina de Souza for neuzasofia555@gmail.com is ALWAYS Pedagogia & Emilia Ferreiro
+      currentFichas = currentFichas.map((f) => {
+        if (
+          (f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() === 'neuzasofia555@gmail.com') ||
+          f.id === 'ficha-1791910169529-c9r1'
+        ) {
+          return {
+            ...INITIAL_FICHAS[0],
+            logoUrl: institutionalLogo || INITIAL_FICHAS[0].logoUrl || ''
+          };
         }
-
-        // If sheet is a blank draft without title & student, guarantee curso is empty
-        if (!f.tituloTrabalho && !nomeVal) {
-          cursoVal = '';
-        }
-
-        if (f.curso !== cursoVal || f.nomeAluno !== nomeVal) {
-          changed = true;
-        }
-        return {
-          ...f,
-          nomeAluno: nomeVal,
-          curso: cursoVal,
-          semestre: f.semestre || '7º Semestre 2026/2',
-          logoUrl: institutionalLogo || f.logoUrl || ''
-        };
+        return f;
       });
 
-      if (changed) {
-        localStorage.setItem(STORAGE_KEY_FICHAS, JSON.stringify(cleaned));
-      }
-      return cleaned;
+      // Always sort deterministically to prevent fichas from shuffling or being out of order
+      currentFichas = sortFichasDeterministically(currentFichas);
+
+      localStorage.setItem(STORAGE_KEY_FICHAS, JSON.stringify(currentFichas));
+      return currentFichas;
     } catch {
       return [...INITIAL_FICHAS];
     }
@@ -366,20 +391,20 @@ export const storageService = {
         .replace(/[^a-z0-9]/g, '');
     };
 
+    // Direct priority for Marineuza Lina de Souza (neuzasofia555@gmail.com) in Pedagogia
+    if (userEmailNorm === 'neuzasofia555@gmail.com') {
+      const canonical = {
+        ...INITIAL_FICHAS[0],
+        logoUrl: this.getInstitutionalLogo() || INITIAL_FICHAS[0].logoUrl || ''
+      };
+      this.setActiveFichaId(canonical.id);
+      return canonical;
+    }
+
     // 1. Direct match by student email
     let found = allFichas.find(
       (f) => f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() === userEmailNorm
     );
-
-    // 2. Specific alias match for pre-registered students
-    if (!found && userEmailNorm === 'neuzasofia555@gmail.com') {
-      found = allFichas.find(
-        (f) =>
-          f.id === 'ficha-1791910169529-c9r1' ||
-          (f.nomeAluno && normalizePersonName(f.nomeAluno).includes('marineuza')) ||
-          (f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() === 'neuzasofia555@gmail.com')
-      );
-    }
 
     // 3. Direct match by student user ID
     if (!found) {
@@ -465,10 +490,11 @@ export const storageService = {
       if (index >= 0) {
         fichas[index] = updatedFicha;
       } else {
-        fichas.unshift(updatedFicha);
+        fichas.push(updatedFicha);
       }
 
-      localStorage.setItem(STORAGE_KEY_FICHAS, JSON.stringify(fichas));
+      const sortedFichas = sortFichasDeterministically(fichas);
+      localStorage.setItem(STORAGE_KEY_FICHAS, JSON.stringify(sortedFichas));
       this.setActiveFichaId(ficha.id);
     } catch (e) {
       console.error('Error saving ficha', e);

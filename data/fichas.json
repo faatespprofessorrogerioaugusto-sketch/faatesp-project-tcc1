@@ -1,20 +1,20 @@
 [
   {
     "id": "ficha-1791910169529-c9r1",
-    "tituloTrabalho": "Metodologias Ativas no Ensino Fundamental: Desafios Pedagógicos",
+    "tituloTrabalho": "Apresentação da teoria de Emilia Ferreiro e sua relevância",
     "nomeAluno": "Marineuza Lina de Souza",
     "curso": "Licenciatura em Pedagogia",
     "semestre": "7º Semestre 2026/2",
     "professorOrientador": "Prof. Rogério Augusto",
-    "situacaoProblema": "Dificuldades dos educadores na implementação prática de dinâmicas ativas em salas de aula inclusivas no ensino fundamental.",
-    "hipotese": "O planejamento baseado em projetos interdisciplinares e metodologias ativas aumenta em 70% o engajamento, a autonomia e a retenção do aprendizado dos alunos.",
-    "bibliografia": "FREIRE, Paulo. Pedagogia da Autonomia: Saberes Necessários à Prática Educativa. São Paulo: Paz e Terra, 2019.\nMORAN, José. Metodologias Ativas para uma Educação Inovadora: Uma Abordagem Teórico-Prática. Porto Alegre: Penso, 2018.\nBACICH, Lilian; MORAN, José. Metodologias Ativas para uma Educação Inovadora. Porto Alegre: Penso, 2018.",
+    "situacaoProblema": "Desafios na compreensão dos processos de psicogênese da língua escrita e na superação das práticas tradicionais e mecânicas de alfabetização e letramento nos anos iniciais do ensino fundamental.",
+    "hipotese": "A apropriação dos conceitos teóricos de Emilia Ferreiro sobre a psicogênese da escrita permite aos educadores intervir de forma reflexiva nos estágios de alfabetização dos alunos, acelerando a consolidação da leitura e da escrita autônoma.",
+    "bibliografia": "FERREIRO, Emilia; TEBEROSKY, Ana. Psicogênese da Língua Escrita. Porto Alegre: Artmed, 1999.\nFERREIRO, Emilia. Reflexões sobre Alfabetização. 26. ed. São Paulo: Cortez, 2011.\nSOARES, Magda. Alfabetização e Letramento. 7. ed. São Paulo: Contexto, 2018.",
     "orientacoes": [
       {
         "id": "ori-neuza-01",
         "data": "2026-02-20",
         "horario": "10:00",
-        "observacao": "Delimitação da situação-problema de pesquisa em Pedagogia e alinhamento do cronograma acadêmico de TCC.",
+        "observacao": "Definição do tema monográfico: Apresentação da teoria de Emilia Ferreiro e sua relevância na alfabetização e letramento.",
         "confirmado": true,
         "nomeOrientador": "Prof. Rogério Augusto",
         "dataConfirmacao": "2026-02-20 10:40",
@@ -24,7 +24,7 @@
         "id": "ori-neuza-02",
         "data": "2026-04-10",
         "horario": "11:00",
-        "observacao": "Revisão das normas técnicas da FAATESP, análise das hipóteses pedagógicas e estruturação dos resultados.",
+        "observacao": "Análise dos estágios da psicogênese (pré-silábico, silábico, silábico-alfabético e alfabético) e fundamentação bibliográfica segundo normas FAATESP.",
         "confirmado": true,
         "nomeOrientador": "Prof. Rogério Augusto",
         "dataConfirmacao": "2026-04-10 11:30",
@@ -34,10 +34,10 @@
     "nota": "10.0",
     "status": "aprovado",
     "dataCriacao": "2026-02-10T10:00:00.000Z",
-    "ultimaAtualizacao": "2026-10-13T17:30:00.000Z",
+    "ultimaAtualizacao": "2026-10-13T17:55:00.000Z",
     "usuarioId": "user_neuzasofia555_gmail_com",
     "usuarioEmail": "neuzasofia555@gmail.com",
-    "parecerOrientador": "Trabalho exemplar na área de Pedagogia. Demonstra rigor teórico, domínio das metodologias ativas e relevância pedagógica. Aprovado sem ressalvas pela comissão de orientação.",
+    "parecerOrientador": "Excelente pesquisa monográfica sobre a teoria de Emilia Ferreiro e sua profunda relevância pedagógica para o processo de alfabetização. Trabalho aprovado com nota máxima pela comissão de orientação.",
     "parecerAtendido": true
   },
   {
@@ -83,42 +83,42 @@
   },
   {
     "id": "ficha-faatesp-003",
-    "tituloTrabalho": "Inclusão Escolar e Práticas Pedagógicas Interdisciplinares",
+    "tituloTrabalho": "Metodologias Ativas no Ensino Fundamental: Desafios Pedagógicos",
     "nomeAluno": "Gabriel Oliveira Santos",
     "curso": "Licenciatura em Pedagogia",
     "semestre": "7º Semestre 2026/2",
     "professorOrientador": "Profa. Marinês Borba",
-    "situacaoProblema": "Dificuldades na adaptação de práticas interdisciplinares para alunos com necessidades educacionais especiais.",
-    "hipotese": "A formação continuada docente articulada a oficinas cooperativas interdisciplinares potencializa a inclusão em 65%.",
-    "bibliografia": "MANTOAN, Maria Teresa Eglér. Inclusão Escolar: O que é? Por quê? Como fazer? São Paulo: Moderna, 2017.\nFREIRE, Paulo. Pedagogia da Autonomia. São Paulo: Paz e Terra, 2019.",
+    "situacaoProblema": "Dificuldades dos educadores na implementação prática de dinâmicas ativas em salas de aula inclusivas.",
+    "hipotese": "O planejamento baseado em projetos interdisciplinares aumenta em 70% o engajamento e a retenção do aprendizado.",
+    "bibliografia": "FREIRE, Paulo. Pedagogia da Autonomia: Saberes Necessários à Prática Educativa. São Paulo: Paz e Terra, 2019.\nMORAN, José. Metodologias Ativas para uma Educação Inovadora. Porto Alegre: Penso, 2018.",
     "orientacoes": [
       {
-        "id": "ori-gabriel-01",
-        "data": "2026-02-25",
-        "horario": "09:00",
-        "observacao": "Definição do corpus da pesquisa e revisão da literatura sobre educação inclusiva.",
+        "id": "ori-301",
+        "data": "2026-02-20",
+        "horario": "10:00",
+        "observacao": "Delimitação do problema de pesquisa e alinhamento do cronograma acadêmico.",
         "confirmado": true,
         "nomeOrientador": "Profa. Marinês Borba",
-        "dataConfirmacao": "2026-02-25 09:30",
-        "assinaturaDigital": "faatesp_val_gabriel_01"
+        "dataConfirmacao": "2026-02-20 10:40",
+        "assinaturaDigital": "faatesp_val_098abc"
       },
       {
-        "id": "ori-gabriel-02",
-        "data": "2026-04-15",
-        "horario": "10:30",
-        "observacao": "Organização das oficinas pedagógicas e discussão dos resultados preliminares.",
+        "id": "ori-302",
+        "data": "2026-04-10",
+        "horario": "11:00",
+        "observacao": "Revisão das normas técnicas e formatação conforme diretrizes FAATESP.",
         "confirmado": true,
         "nomeOrientador": "Profa. Marinês Borba",
-        "dataConfirmacao": "2026-04-15 11:00",
-        "assinaturaDigital": "faatesp_val_gabriel_02"
+        "dataConfirmacao": "2026-04-10 11:30",
+        "assinaturaDigital": "faatesp_val_5543ef"
       }
     ],
-    "nota": "9.5",
+    "nota": "10.0",
     "status": "aprovado",
     "dataCriacao": "2026-01-20T09:00:00.000Z",
     "ultimaAtualizacao": "2026-10-10T11:00:00.000Z",
     "usuarioId": "user_gabriel_oliveira_gmail_com",
     "usuarioEmail": "gabriel.oliveira@gmail.com",
-    "parecerOrientador": "Trabalho muito bem conduzido sobre práticas inclusivas em Pedagogia."
+    "parecerOrientador": "Trabalho exemplar, aprovado sem ressalvas pela comissão de orientação."
   }
 ]

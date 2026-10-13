@@ -71,7 +71,11 @@ export default function App() {
   const handleLoginSuccess = async (loggedUser: User) => {
     storageService.setLoggedUser(loggedUser);
     cloudStorageService.logUserAccess(loggedUser, 'login');
-    // Clear any previous active ficha from other users
+    // Clear any previous active ficha from other users or outdated sessions
+    try {
+      localStorage.removeItem('pm_faatesp_active_ficha_id');
+      localStorage.removeItem('pm_faatesp_active_ficha');
+    } catch {}
     setActiveFicha(null);
     await loadFichasData(loggedUser);
     setUser(loggedUser);

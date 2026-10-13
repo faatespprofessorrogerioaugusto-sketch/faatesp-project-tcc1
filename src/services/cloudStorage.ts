@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { FichaTCC, User, AccessLog } from '../types';
-import { storageService } from './storage';
+import { storageService, sortFichasDeterministically } from './storage';
 
 const FICHAS_COLLECTION = 'fichas';
 const CONFIG_COLLECTION = 'systemConfig';
@@ -71,14 +71,9 @@ export const cloudStorageService = {
           });
 
           if (remoteFichas.length > 0) {
-            remoteFichas.sort((a, b) => {
-              const tA = new Date(a.ultimaAtualizacao || a.dataCriacao || 0).getTime();
-              const tB = new Date(b.ultimaAtualizacao || b.dataCriacao || 0).getTime();
-              return tB - tA;
-            });
-
-            localStorage.setItem('pm_faatesp_fichas', JSON.stringify(remoteFichas));
-            callback(remoteFichas);
+            const sorted = sortFichasDeterministically(remoteFichas);
+            localStorage.setItem('pm_faatesp_fichas', JSON.stringify(sorted));
+            callback(sorted);
           }
         },
         () => {
@@ -104,13 +99,9 @@ export const cloudStorageService = {
         const data = await res.json();
         if (data && Array.isArray(data.fichas) && data.fichas.length > 0) {
           const serverFichas: FichaTCC[] = data.fichas;
-          serverFichas.sort((a, b) => {
-            const tA = new Date(a.ultimaAtualizacao || a.dataCriacao || 0).getTime();
-            const tB = new Date(b.ultimaAtualizacao || b.dataCriacao || 0).getTime();
-            return tB - tA;
-          });
-          localStorage.setItem('pm_faatesp_fichas', JSON.stringify(serverFichas));
-          return serverFichas;
+          const sorted = sortFichasDeterministically(serverFichas);
+          localStorage.setItem('pm_faatesp_fichas', JSON.stringify(sorted));
+          return sorted;
         }
       }
     } catch {
@@ -127,14 +118,9 @@ export const cloudStorageService = {
       });
 
       if (remoteFichas.length > 0) {
-        remoteFichas.sort((a, b) => {
-          const tA = new Date(a.ultimaAtualizacao || a.dataCriacao || 0).getTime();
-          const tB = new Date(b.ultimaAtualizacao || b.dataCriacao || 0).getTime();
-          return tB - tA;
-        });
-
-        localStorage.setItem('pm_faatesp_fichas', JSON.stringify(remoteFichas));
-        return remoteFichas;
+        const sorted = sortFichasDeterministically(remoteFichas);
+        localStorage.setItem('pm_faatesp_fichas', JSON.stringify(sorted));
+        return sorted;
       }
     } catch {
       // Quota limit or offline, fall back to local storage
@@ -203,24 +189,22 @@ export const cloudStorageService = {
    */
   async getStudentFicha(user: User): Promise<FichaTCC> {
     try {
-      const all = await this.getFichas();
       const userEmailNorm = (user.email || '').trim().toLowerCase();
       const userId = user.id;
+
+      // Direct priority for Marineuza Lina de Souza (neuzasofia555@gmail.com) in Pedagogia
+      if (userEmailNorm === 'neuzasofia555@gmail.com') {
+        const canonical = storageService.getStudentFicha(user);
+        storageService.setActiveFichaId(canonical.id);
+        return canonical;
+      }
+
+      const all = await this.getFichas();
 
       // 1. Direct match by student email
       let found = all.find(
         (f) => f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() === userEmailNorm
       );
-
-      // 2. Pre-registered student mapping
-      if (!found && userEmailNorm === 'neuzasofia555@gmail.com') {
-        found = all.find(
-          (f) =>
-            f.id === 'ficha-1791910169529-c9r1' ||
-            (f.nomeAluno && normalizePersonName(f.nomeAluno).includes('marineuza')) ||
-            (f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() === 'neuzasofia555@gmail.com')
-        );
-      }
 
       // 3. Direct match by student user ID
       if (!found) {

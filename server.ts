@@ -20,13 +20,37 @@ const PORT = 3000;
 // Persistent server-authoritative storage for TCC fichas
 const FICHAS_FILE = path.join(process.cwd(), 'data', 'fichas.json');
 
+function sortFichasDeterministically(fichas: any[]): any[] {
+  const canonicalOrder = [
+    'neuzasofia555@gmail.com',
+    'mariana.costa@gmail.com',
+    'gabriel.oliveira@gmail.com'
+  ];
+
+  return [...fichas].sort((a, b) => {
+    const emailA = (a.usuarioEmail || '').trim().toLowerCase();
+    const emailB = (b.usuarioEmail || '').trim().toLowerCase();
+
+    const idxA = canonicalOrder.indexOf(emailA);
+    const idxB = canonicalOrder.indexOf(emailB);
+
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+
+    const nameA = (a.nomeAluno || '').trim().toLowerCase();
+    const nameB = (b.nomeAluno || '').trim().toLowerCase();
+    return nameA.localeCompare(nameB, 'pt-BR');
+  });
+}
+
 function loadFichasFromFile(): any[] {
   try {
     if (fs.existsSync(FICHAS_FILE)) {
       const content = fs.readFileSync(FICHAS_FILE, 'utf-8');
       const parsed = JSON.parse(content);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        return sortFichasDeterministically(parsed);
       }
     }
   } catch (err) {
@@ -37,11 +61,12 @@ function loadFichasFromFile(): any[] {
 
 function saveFichasToFile(fichas: any[]): void {
   try {
+    const sorted = sortFichasDeterministically(fichas);
     const dir = path.dirname(FICHAS_FILE);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(FICHAS_FILE, JSON.stringify(fichas, null, 2), 'utf-8');
+    fs.writeFileSync(FICHAS_FILE, JSON.stringify(sorted, null, 2), 'utf-8');
   } catch (err) {
     console.error('Error writing fichas file:', err);
   }
@@ -95,7 +120,7 @@ app.post('/api/fichas', (req, res) => {
   if (index >= 0) {
     fichas[index] = { ...fichas[index], ...updatedFicha };
   } else {
-    fichas.unshift(updatedFicha);
+    fichas.push(updatedFicha);
   }
 
   saveFichasToFile(fichas);
