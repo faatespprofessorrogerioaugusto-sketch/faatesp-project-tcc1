@@ -206,7 +206,16 @@ export const cloudStorageService = {
         (f) => f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() === userEmailNorm
       );
 
-      // 3. Direct match by student user ID
+      // 1.1 Direct fallback for Marineuza Lina de Souza (clone exact Orientador ficha)
+      if (!found && userEmailNorm === 'neuzasofia555@gmail.com') {
+        found = all.find(
+          (f) =>
+            f.id === 'ficha-1791910169529-c9r1' ||
+            (f.nomeAluno && normalizePersonName(f.nomeAluno).includes('marineuza'))
+        );
+      }
+
+      // 2. Direct match by student user ID
       if (!found) {
         found = all.find((f) => f.usuarioId === userId);
       }

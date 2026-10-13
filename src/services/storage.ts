@@ -7,7 +7,7 @@ const STORAGE_KEY_ACTIVE_FICHA = 'pm_faatesp_active_ficha_id';
 const STORAGE_KEY_ACCESS_LOGS = 'pm_faatesp_access_logs';
 const STORAGE_KEY_INSTITUTIONAL_LOGO = 'pm_faatesp_institutional_logo';
 const STORAGE_KEY_SCHEMA_VERSION = 'pm_faatesp_schema_version';
-const CURRENT_SCHEMA_VERSION = 'v20261013_emilia_ferreiro_fixed_order_v5';
+const CURRENT_SCHEMA_VERSION = 'v20261013_cloned_orientador_clean_v6';
 
 export function sortFichasDeterministically(fichas: FichaTCC[]): FichaTCC[] {
   const canonicalOrder = [
@@ -55,26 +55,16 @@ const INITIAL_FICHAS: FichaTCC[] = [
         nomeOrientador: 'Prof. Rogério Augusto',
         dataConfirmacao: '2026-02-20 10:40',
         assinaturaDigital: 'faatesp_val_neuza_01'
-      },
-      {
-        id: 'ori-neuza-02',
-        data: '2026-04-10',
-        horario: '11:00',
-        observacao: 'Análise dos estágios da psicogênese (pré-silábico, silábico, silábico-alfabético e alfabético) e fundamentação bibliográfica segundo normas FAATESP.',
-        confirmado: true,
-        nomeOrientador: 'Prof. Rogério Augusto',
-        dataConfirmacao: '2026-04-10 11:30',
-        assinaturaDigital: 'faatesp_val_neuza_02'
       }
     ],
-    nota: '10.0',
-    status: 'aprovado',
+    nota: '',
+    status: 'em_andamento',
     dataCriacao: '2026-02-10T10:00:00.000Z',
     ultimaAtualizacao: '2026-10-13T17:55:00.000Z',
     usuarioId: 'user_neuzasofia555_gmail_com',
     usuarioEmail: 'neuzasofia555@gmail.com',
-    parecerOrientador: 'Excelente pesquisa monográfica sobre a teoria de Emilia Ferreiro e sua profunda relevância pedagógica para o processo de alfabetização. Trabalho aprovado com nota máxima pela comissão de orientação.',
-    parecerAtendido: true
+    parecerOrientador: 'Apresentar na próxima orientação a fundamentação teórica completa segundo a psicogênese da língua escrita de Emilia Ferreiro e o alinhamento pedagógico. Trabalho com restrições e pendências para validação final.',
+    parecerAtendido: false
   },
   {
     id: 'ficha-faatesp-002',
@@ -344,20 +334,6 @@ export const storageService = {
         }
       }
 
-      // Specifically guarantee Marineuza Lina de Souza for neuzasofia555@gmail.com is ALWAYS Pedagogia & Emilia Ferreiro
-      currentFichas = currentFichas.map((f) => {
-        if (
-          (f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() === 'neuzasofia555@gmail.com') ||
-          f.id === 'ficha-1791910169529-c9r1'
-        ) {
-          return {
-            ...INITIAL_FICHAS[0],
-            logoUrl: institutionalLogo || INITIAL_FICHAS[0].logoUrl || ''
-          };
-        }
-        return f;
-      });
-
       // Always sort deterministically to prevent fichas from shuffling or being out of order
       currentFichas = sortFichasDeterministically(currentFichas);
 
@@ -375,7 +351,7 @@ export const storageService = {
 
   /**
    * Resilient student retrieval: guarantees that student's saved data
-   * is always loaded when returning, based on user email, ID, or active reference.
+   * clones the exact ficha present in Orientador mode.
    */
   getStudentFicha(user: User): FichaTCC {
     const allFichas = this.getFichas();
@@ -391,22 +367,21 @@ export const storageService = {
         .replace(/[^a-z0-9]/g, '');
     };
 
-    // Direct priority for Marineuza Lina de Souza (neuzasofia555@gmail.com) in Pedagogia
-    if (userEmailNorm === 'neuzasofia555@gmail.com') {
-      const canonical = {
-        ...INITIAL_FICHAS[0],
-        logoUrl: this.getInstitutionalLogo() || INITIAL_FICHAS[0].logoUrl || ''
-      };
-      this.setActiveFichaId(canonical.id);
-      return canonical;
-    }
-
     // 1. Direct match by student email
     let found = allFichas.find(
       (f) => f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() === userEmailNorm
     );
 
-    // 3. Direct match by student user ID
+    // 1.1 Direct fallback for Marineuza Lina de Souza
+    if (!found && userEmailNorm === 'neuzasofia555@gmail.com') {
+      found = allFichas.find(
+        (f) =>
+          f.id === 'ficha-1791910169529-c9r1' ||
+          (f.nomeAluno && normalizePersonName(f.nomeAluno).includes('marineuza'))
+      );
+    }
+
+    // 2. Direct match by student user ID
     if (!found) {
       found = allFichas.find((f) => f.usuarioId === userId);
     }

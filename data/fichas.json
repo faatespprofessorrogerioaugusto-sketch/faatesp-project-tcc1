@@ -19,26 +19,16 @@
         "nomeOrientador": "Prof. Rogério Augusto",
         "dataConfirmacao": "2026-02-20 10:40",
         "assinaturaDigital": "faatesp_val_neuza_01"
-      },
-      {
-        "id": "ori-neuza-02",
-        "data": "2026-04-10",
-        "horario": "11:00",
-        "observacao": "Análise dos estágios da psicogênese (pré-silábico, silábico, silábico-alfabético e alfabético) e fundamentação bibliográfica segundo normas FAATESP.",
-        "confirmado": true,
-        "nomeOrientador": "Prof. Rogério Augusto",
-        "dataConfirmacao": "2026-04-10 11:30",
-        "assinaturaDigital": "faatesp_val_neuza_02"
       }
     ],
-    "nota": "10.0",
-    "status": "aprovado",
+    "nota": "",
+    "status": "em_andamento",
     "dataCriacao": "2026-02-10T10:00:00.000Z",
     "ultimaAtualizacao": "2026-10-13T17:55:00.000Z",
     "usuarioId": "user_neuzasofia555_gmail_com",
     "usuarioEmail": "neuzasofia555@gmail.com",
-    "parecerOrientador": "Excelente pesquisa monográfica sobre a teoria de Emilia Ferreiro e sua profunda relevância pedagógica para o processo de alfabetização. Trabalho aprovado com nota máxima pela comissão de orientação.",
-    "parecerAtendido": true
+    "parecerOrientador": "Apresentar na próxima orientação a fundamentação teórica completa segundo a psicogênese da língua escrita de Emilia Ferreiro e o alinhamento pedagógico. Trabalho com restrições e pendências para validação final.",
+    "parecerAtendido": false
   },
   {
     "id": "ficha-faatesp-002",
