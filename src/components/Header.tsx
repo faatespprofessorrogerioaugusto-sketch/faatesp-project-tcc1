@@ -10,7 +10,8 @@ import {
   LogOut,
   UserCheck,
   User as UserIcon,
-  SearchCheck
+  SearchCheck,
+  BookOpen
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -35,6 +36,7 @@ export const Header: React.FC<HeaderProps> = ({
       : []),
     { id: 'editar' as ActiveScreen, label: 'Editar Ficha', icon: FileEdit },
     { id: 'preview' as ActiveScreen, label: 'Pré-Visualização', icon: Eye },
+    { id: 'manual' as ActiveScreen, label: 'Manual Oficial', icon: BookOpen },
     ...(user.role === 'orientador'
       ? [{ id: 'historico' as ActiveScreen, label: 'Histórico', icon: History }]
       : [])

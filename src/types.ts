@@ -45,7 +45,7 @@ export interface FichaTCC {
   dataAtendimentoParecer?: string;
 }
 
-export type ActiveScreen = 'main' | 'editar' | 'preview' | 'historico' | 'consulta';
+export type ActiveScreen = 'main' | 'editar' | 'preview' | 'historico' | 'consulta' | 'manual';
 
 export interface AccessLog {
   id: string;

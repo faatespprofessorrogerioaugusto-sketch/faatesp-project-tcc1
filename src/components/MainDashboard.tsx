@@ -502,6 +502,22 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({
           </div>
         </button>
 
+        {/* Manual Oficial de Orientação */}
+        <button
+          onClick={() => onNavigate('manual')}
+          className="bg-[#0D1527] p-5 rounded-2xl border border-blue-900/60 hover:border-blue-500 hover:shadow-xl transition-all text-left space-y-3 group cursor-pointer"
+        >
+          <div className="w-10 h-10 rounded-xl bg-blue-950 text-blue-400 border border-blue-800/60 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
+            <BookOpen className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="font-bold text-white text-sm">Manual de Orientação</h3>
+            <p className="text-xs text-slate-400 mt-1">
+              Guia didático, passo a passo de preenchimento e regras de segurança.
+            </p>
+          </div>
+        </button>
+
         {/* History Action (Exclusively for Orientador) */}
         {user.role === 'orientador' && (
           <button

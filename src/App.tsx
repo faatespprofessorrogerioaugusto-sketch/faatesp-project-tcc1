@@ -10,6 +10,7 @@ import { FichaPreview } from './components/FichaPreview';
 import { PreviewWithExport } from './components/PreviewWithExport';
 import { HistoricoScreen } from './components/HistoricoScreen';
 import { ConsultaOrientadorScreen } from './components/ConsultaOrientadorScreen';
+import { ManualScreen } from './components/ManualScreen';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -213,6 +214,13 @@ export default function App() {
             onSelectFicha={handleSelectFichaFromHistory}
             onRefreshFichas={loadFichasData}
             onCreateNew={handleCreateNew}
+          />
+        )}
+
+        {activeScreen === 'manual' && (
+          <ManualScreen
+            currentUser={user}
+            onNavigateMain={() => setActiveScreen('main')}
           />
         )}
       </main>
