@@ -127,6 +127,26 @@ app.post('/api/fichas', (req, res) => {
   res.json({ success: true, ficha: updatedFicha });
 });
 
+app.post('/api/fichas/batch', (req, res) => {
+  const incomingList = req.body?.fichas;
+  if (!Array.isArray(incomingList) || incomingList.length === 0) {
+    return res.status(400).json({ success: false, message: 'Lista inválida de fichas' });
+  }
+
+  const existing = loadFichasFromFile();
+  for (const item of incomingList) {
+    const idx = existing.findIndex((e: any) => e.id === item.id);
+    if (idx >= 0) {
+      existing[idx] = { ...existing[idx], ...item };
+    } else {
+      existing.push(item);
+    }
+  }
+
+  saveFichasToFile(existing);
+  res.json({ success: true, count: existing.length });
+});
+
 app.delete('/api/fichas/:id', (req, res) => {
   const { id } = req.params;
   const fichas = loadFichasFromFile();

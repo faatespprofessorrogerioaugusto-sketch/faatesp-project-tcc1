@@ -57,7 +57,11 @@ function getPredefinedNameForEmail(email: string, role: UserRole): string {
   ) {
     return role === 'orientador' ? 'Profa. Marinês Borba' : 'Marines Rodrigues de Borba';
   }
-  if (norm === 'neuzasofia555@gmail.com') {
+  if (
+    norm === 'neuzasofia555@gmail.com' ||
+    norm === 'marineuza.souza@gmail.com' ||
+    norm === 'nauzasofia555@gmail.com'
+  ) {
     return 'Marineuza Lina de Souza';
   }
   if (norm === 'mariana.costa@gmail.com') {

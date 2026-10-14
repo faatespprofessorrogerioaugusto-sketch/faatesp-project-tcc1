@@ -39,6 +39,7 @@ import { generateDocx } from '../utils/exportDocx';
 import { FichaPreview } from './FichaPreview';
 import { getSignatureForProfessor } from '../utils/signatures';
 import { getFichaExportFilename } from '../utils/filenameHelper';
+import { isMarineuza } from '../services/storage';
 
 interface EmailHistoryItem {
   id: string;
@@ -61,6 +62,7 @@ interface ConsultaOrientadorScreenProps {
   fichas: FichaTCC[];
   onSaveFicha: (ficha: FichaTCC) => void;
   onDeleteFicha?: (fichaId: string) => void;
+  onRefreshFichas?: () => Promise<void> | void;
   onSelectFichaForPreview?: (ficha: FichaTCC) => void;
   onNavigateToEdit: (ficha: FichaTCC) => void;
   onNavigateMain?: () => void;
@@ -71,6 +73,7 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
   fichas,
   onSaveFicha,
   onDeleteFicha,
+  onRefreshFichas,
   onSelectFichaForPreview,
   onNavigateToEdit,
   onNavigateMain
@@ -79,6 +82,7 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
   const [statusFilter, setStatusFilter] = useState<string>('todos');
   const [cursoFilter, setCursoFilter] = useState<string>('todos');
   const [selectedFicha, setSelectedFicha] = useState<FichaTCC | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Form states inside review modal
   const [parecerText, setParecerText] = useState('');
@@ -172,13 +176,24 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
   const pendentesParecer = fichas.filter(f => !f.parecerOrientador).length;
   const aprovadas = fichas.filter(f => f.status === 'aprovado' || f.status === 'concluido').length;
 
+  const handleManualRefresh = async () => {
+    if (!onRefreshFichas || isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await onRefreshFichas();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const handleOpenReviewModal = (ficha: FichaTCC) => {
     setSelectedFicha(ficha);
     setParecerText(ficha.parecerOrientador || '');
     setNotaInput(ficha.nota || '');
     setStatusInput(ficha.status || 'em_andamento');
     setAssinaturaUrl(ficha.assinaturaUrl || '');
-    setAlunoEmailInput(ficha.usuarioEmail || '');
+    const emailToUse = isMarineuza(ficha) ? 'neuzasofia555@gmail.com' : (ficha.usuarioEmail || '');
+    setAlunoEmailInput(emailToUse);
     setSaveSuccessMsg(false);
     setAutoSendResult(null);
   };
@@ -640,26 +655,60 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
               </select>
             </div>
           )}
+          {/* Single Get Firestore Refresh Button */}
+          {onRefreshFichas && (
+            <button
+              type="button"
+              disabled={isRefreshing}
+              onClick={handleManualRefresh}
+              className="flex items-center space-x-1.5 bg-blue-950/80 hover:bg-blue-900 border border-blue-800 text-blue-300 rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+              title="Atualizar lista com consulta única ao Firestore (Single Get)"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-blue-400 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span>{isRefreshing ? 'Consultando...' : 'Atualizar Fichas'}</span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* Fichas Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filteredFichas.map((ficha) => {
-          const validadasCount = ficha.orientacoes.filter(o => o.confirmado).length;
-          const totalOri = ficha.orientacoes.length;
+          const isMarineuzaCard = isMarineuza(ficha);
+          const validadasCount = (ficha.orientacoes || []).filter(o => o?.confirmado).length;
+          const totalOri = (ficha.orientacoes || []).length;
+          const displayAlunoName = isMarineuzaCard
+            ? 'Marineuza Lina de Souza'
+            : (ficha.nomeAluno || ficha.usuarioEmail || 'Aluno não identificado');
+          const displayTitulo = isMarineuzaCard
+            ? (ficha.tituloTrabalho || 'Apresentação da teoria de Emilia Ferreiro e sua relevância.')
+            : (ficha.tituloTrabalho || 'Trabalho de Conclusão de Curso (Sem Título)');
+          const displayCurso = isMarineuzaCard
+            ? 'Licenciatura em Pedagogia'
+            : (ficha.curso || 'Licenciatura em Pedagogia');
 
           return (
             <div
               key={ficha.id}
-              className="bg-[#0b1325] border border-slate-800 hover:border-amber-500/50 rounded-2xl p-5 flex flex-col justify-between shadow-lg transition-all group"
+              className={`bg-[#0b1325] border ${
+                isMarineuzaCard
+                  ? 'border-amber-500/80 shadow-amber-500/10'
+                  : 'border-slate-800 hover:border-amber-500/50'
+              } rounded-2xl p-5 flex flex-col justify-between shadow-lg transition-all group`}
             >
               <div>
                 {/* Header Badge Row */}
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-[10px] font-bold tracking-wider px-2.5 py-1 rounded-full uppercase bg-blue-950 text-blue-300 border border-blue-800">
-                    {ficha.curso || 'Curso não informado'}
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-[10px] font-bold tracking-wider px-2.5 py-1 rounded-full uppercase bg-blue-950 text-blue-300 border border-blue-800">
+                      {displayCurso}
+                    </span>
+                    {isMarineuzaCard && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                        Aluna Marineusa
+                      </span>
+                    )}
+                  </div>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border ${
                     ficha.status === 'aprovado' ? 'bg-emerald-950 text-emerald-300 border-emerald-800' :
                     ficha.status === 'em_andamento' ? 'bg-amber-950 text-amber-300 border-amber-800' :
@@ -671,13 +720,13 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
 
                 {/* Title and Student Info */}
                 <h3 className="text-sm font-bold text-white group-hover:text-amber-300 transition-colors line-clamp-2 mb-2">
-                  {ficha.tituloTrabalho || 'Trabalho de Conclusão de Curso (Sem Título)'}
+                  {displayTitulo}
                 </h3>
 
                 <div className="space-y-1.5 mb-4 text-xs text-slate-300">
                   <p className="flex items-center space-x-2">
                     <User className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span className="font-semibold text-white">{ficha.nomeAluno || 'Aluno não identificado'}</span>
+                    <span className="font-semibold text-white">{displayAlunoName}</span>
                   </p>
                   <p className="text-[11px] text-slate-400 pl-5">
                     {ficha.semestre || 'Semestre não informado'}
@@ -706,12 +755,18 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
                     </span>
                   </div>
 
-                  {ficha.nota && (
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-800">
-                      <span className="text-slate-400 font-medium">Nota TCC:</span>
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-800">
+                    <span className="text-slate-400 font-medium">Nota TCC:</span>
+                    {ficha.nota ? (
                       <span className="text-xs font-black text-amber-300">{ficha.nota}</span>
-                    </div>
-                  )}
+                    ) : isMarineuzaCard ? (
+                      <span className="text-[10px] font-bold text-amber-400/90 bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded-md">
+                        Sem Nota • Restrição
+                      </span>
+                    ) : (
+                      <span className="text-xs font-medium text-slate-500 italic">Pendente</span>
+                    )}
+                  </div>
                 </div>
               </div>
 

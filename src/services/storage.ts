@@ -1,5 +1,6 @@
 import { AccessLog, FichaTCC, User } from '../types';
 import { FAATESP_LOGO_SVG } from '../utils/signatures';
+import { CANONICAL_FICHAS } from './canonicalFichas';
 
 const STORAGE_KEY_USER = 'pm_faatesp_user';
 const STORAGE_KEY_FICHAS = 'pm_faatesp_fichas';
@@ -7,148 +8,61 @@ const STORAGE_KEY_ACTIVE_FICHA = 'pm_faatesp_active_ficha_id';
 const STORAGE_KEY_ACCESS_LOGS = 'pm_faatesp_access_logs';
 const STORAGE_KEY_INSTITUTIONAL_LOGO = 'pm_faatesp_institutional_logo';
 const STORAGE_KEY_SCHEMA_VERSION = 'pm_faatesp_schema_version';
-const CURRENT_SCHEMA_VERSION = 'v20261013_cloned_orientador_clean_v6';
+const CURRENT_SCHEMA_VERSION = 'v20261014_single_get_firestore_v2';
+
+export function isMarineuza(item?: { id?: string; usuarioEmail?: string; email?: string; nomeAluno?: string; name?: string } | null): boolean {
+  if (!item) return false;
+  const id = item.id || '';
+  if (id === 'ficha-1790973147343-i0su') return true;
+  const email = (item.usuarioEmail || item.email || '').trim().toLowerCase();
+  if (
+    email === 'neuzasofia555@gmail.com' ||
+    email === 'marineuza.souza@gmail.com' ||
+    email === 'nauzasofia555@gmail.com'
+  ) {
+    return true;
+  }
+  const name = (item.nomeAluno || item.name || '').trim().toLowerCase();
+  if (name.includes('marineuza') || name.includes('marineusa')) return true;
+  return false;
+}
 
 export function sortFichasDeterministically(fichas: FichaTCC[]): FichaTCC[] {
-  const canonicalOrder = [
-    'neuzasofia555@gmail.com',
-    'mariana.costa@gmail.com',
-    'gabriel.oliveira@gmail.com'
-  ];
-
   return [...fichas].sort((a, b) => {
-    const emailA = (a.usuarioEmail || '').trim().toLowerCase();
-    const emailB = (b.usuarioEmail || '').trim().toLowerCase();
+    // Marineuza Lina de Souza always has top priority
+    const isMarA = isMarineuza(a);
+    const isMarB = isMarineuza(b);
+    if (isMarA && !isMarB) return -1;
+    if (!isMarA && isMarB) return 1;
 
-    const idxA = canonicalOrder.indexOf(emailA);
-    const idxB = canonicalOrder.indexOf(emailB);
+    // Fichas with a defined project title come before empty drafts
+    const hasTitleA = Boolean(a.tituloTrabalho && a.tituloTrabalho.trim());
+    const hasTitleB = Boolean(b.tituloTrabalho && b.tituloTrabalho.trim());
+    if (hasTitleA && !hasTitleB) return -1;
+    if (!hasTitleA && hasTitleB) return 1;
 
-    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-    if (idxA !== -1) return -1;
-    if (idxB !== -1) return 1;
-
-    const nameA = (a.nomeAluno || '').trim().toLowerCase();
-    const nameB = (b.nomeAluno || '').trim().toLowerCase();
+    // Alphabetical order by student name or email
+    const nameA = (a.nomeAluno || a.usuarioEmail || '').trim().toLowerCase();
+    const nameB = (b.nomeAluno || b.usuarioEmail || '').trim().toLowerCase();
     return nameA.localeCompare(nameB, 'pt-BR');
   });
 }
 
-// Canonical initial data matching FAATESP TCC activity sheet requirements
-const INITIAL_FICHAS: FichaTCC[] = [
-  {
-    id: 'ficha-1791910169529-c9r1',
-    tituloTrabalho: 'Apresentação da teoria de Emilia Ferreiro e sua relevância',
-    nomeAluno: 'Marineuza Lina de Souza',
-    curso: 'Licenciatura em Pedagogia',
-    semestre: '7º Semestre 2026/2',
-    professorOrientador: 'Prof. Rogério Augusto',
-    situacaoProblema: 'Desafios na compreensão dos processos de psicogênese da língua escrita e na superação das práticas tradicionais e mecânicas de alfabetização e letramento nos anos iniciais do ensino fundamental.',
-    hipotese: 'A apropriação dos conceitos teóricos de Emilia Ferreiro sobre a psicogênese da escrita permite aos educadores intervir de forma reflexiva nos estágios de alfabetização dos alunos, acelerando a consolidação da leitura e da escrita autônoma.',
-    bibliografia: 'FERREIRO, Emilia; TEBEROSKY, Ana. Psicogênese da Língua Escrita. Porto Alegre: Artmed, 1999.\nFERREIRO, Emilia. Reflexões sobre Alfabetização. 26. ed. São Paulo: Cortez, 2011.\nSOARES, Magda. Alfabetização e Letramento. 7. ed. São Paulo: Contexto, 2018.',
-    orientacoes: [
-      {
-        id: 'ori-neuza-01',
-        data: '2026-02-20',
-        horario: '10:00',
-        observacao: 'Definição do tema monográfico: Apresentação da teoria de Emilia Ferreiro e sua relevância na alfabetização e letramento.',
-        confirmado: true,
-        nomeOrientador: 'Prof. Rogério Augusto',
-        dataConfirmacao: '2026-02-20 10:40',
-        assinaturaDigital: 'faatesp_val_neuza_01'
-      }
-    ],
-    nota: '',
-    status: 'em_andamento',
-    dataCriacao: '2026-02-10T10:00:00.000Z',
-    ultimaAtualizacao: '2026-10-13T17:55:00.000Z',
-    usuarioId: 'user_neuzasofia555_gmail_com',
-    usuarioEmail: 'neuzasofia555@gmail.com',
-    parecerOrientador: 'Apresentar na próxima orientação a fundamentação teórica completa segundo a psicogênese da língua escrita de Emilia Ferreiro e o alinhamento pedagógico. Trabalho com restrições e pendências para validação final.',
-    parecerAtendido: false
-  },
-  {
-    id: 'ficha-faatesp-002',
-    tituloTrabalho: 'Gestão Estratégica da Cadeia de Suprimentos na Indústria Farmacêutica',
-    nomeAluno: 'Mariana Costa Ribeiro',
-    curso: 'Bacharel em Administração',
-    semestre: '7º Semestre 2026/2',
-    professorOrientador: 'Prof. Rogério Augusto',
-    situacaoProblema: 'Inoperância no controle de estoque de insumos refrigerados durante o transporte de longa distância.',
-    hipotese: 'O uso de sensores IoT integrados a redes blockchain reduz perdas por variação de temperatura em até 85%.',
-    bibliografia: 'CHOPRA, S. Gestão da Cadeia de Suprimentos. Rio de Janeiro: Pearson, 2021.\nBALLOU, Ronald H. Logística Empresarial: Transportes, Administração de Materiais e Distribuição Física. São Paulo: Atlas, 2019.',
-    orientacoes: [
-      {
-        id: 'ori-201',
-        data: '2026-03-18',
-        horario: '16:00',
-        observacao: 'Apresentação do tema e justificativa mercadológica do projeto de pesquisa.',
-        confirmado: true,
-        nomeOrientador: 'Prof. Rogério Augusto',
-        dataConfirmacao: '2026-03-18 16:30',
-        assinaturaDigital: 'faatesp_val_f71120'
-      },
-      {
-        id: 'ori-202',
-        data: '2026-05-02',
-        horario: '14:00',
-        observacao: 'Análise de dados quantitativos e elaboração dos gráficos de resultados esperados.',
-        confirmado: true,
-        nomeOrientador: 'Prof. Rogério Augusto',
-        dataConfirmacao: '2026-05-02 14:35',
-        assinaturaDigital: 'faatesp_val_f71121'
-      }
-    ],
-    nota: '8.5',
-    status: 'em_andamento',
-    dataCriacao: '2026-02-15T10:00:00.000Z',
-    ultimaAtualizacao: '2026-10-12T16:00:00.000Z',
-    usuarioId: 'user_mariana_costa_gmail_com',
-    usuarioEmail: 'mariana.costa@gmail.com',
-    parecerOrientador: 'Excelente desenvolvimento na área de Administração. Focar na análise quantitativa da hipótese para a próxima reunião.',
-    parecerAtendido: false
-  },
-  {
-    id: 'ficha-faatesp-003',
-    tituloTrabalho: 'Metodologias Ativas no Ensino Fundamental: Desafios Pedagógicos',
-    nomeAluno: 'Gabriel Oliveira Santos',
-    curso: 'Licenciatura em Pedagogia',
-    semestre: '7º Semestre 2026/2',
-    professorOrientador: 'Profa. Marinês Borba',
-    situacaoProblema: 'Dificuldades dos educadores na implementação prática de dinâmicas ativas em salas de aula inclusivas no ensino fundamental.',
-    hipotese: 'O planejamento baseado em projetos interdisciplinares aumenta em 70% o engajamento e a retenção do aprendizado.',
-    bibliografia: 'FREIRE, Paulo. Pedagogia da Autonomia: Saberes Necessários à Prática Educativa. São Paulo: Paz e Terra, 2019.\nMORAN, José. Metodologias Ativas para uma Educação Inovadora. Porto Alegre: Penso, 2018.',
-    orientacoes: [
-      {
-        id: 'ori-301',
-        data: '2026-02-20',
-        horario: '10:00',
-        observacao: 'Delimitação do problema de pesquisa e alinhamento do cronograma acadêmico.',
-        confirmado: true,
-        nomeOrientador: 'Profa. Marinês Borba',
-        dataConfirmacao: '2026-02-20 10:40',
-        assinaturaDigital: 'faatesp_val_098abc'
-      },
-      {
-        id: 'ori-302',
-        data: '2026-04-10',
-        horario: '11:00',
-        observacao: 'Revisão das normas técnicas e formatação conforme diretrizes FAATESP.',
-        confirmado: true,
-        nomeOrientador: 'Profa. Marinês Borba',
-        dataConfirmacao: '2026-04-10 11:30',
-        assinaturaDigital: 'faatesp_val_5543ef'
-      }
-    ],
-    nota: '10.0',
-    status: 'aprovado',
-    dataCriacao: '2026-01-20T09:00:00.000Z',
-    ultimaAtualizacao: '2026-10-10T11:00:00.000Z',
-    usuarioId: 'user_gabriel_oliveira_gmail_com',
-    usuarioEmail: 'gabriel.oliveira@gmail.com',
-    parecerOrientador: 'Trabalho exemplar, aprovado sem ressalvas pela comissão de orientação.',
-    parecerAtendido: true
-  }
-];
+export function cleanForStorage(fichas: FichaTCC[]): FichaTCC[] {
+  return fichas.map((f) => {
+    const clone = { ...f };
+    if (clone.logoUrl && clone.logoUrl.length > 500) {
+      clone.logoUrl = '';
+    }
+    if (clone.assinaturaUrl && clone.assinaturaUrl.length > 500) {
+      clone.assinaturaUrl = '';
+    }
+    return clone;
+  });
+}
+
+// Canonical initial data with ALL real student records from Firestore
+const INITIAL_FICHAS: FichaTCC[] = CANONICAL_FICHAS;
 
 export const storageService = {
   // User Authentication persistence
@@ -337,7 +251,11 @@ export const storageService = {
       // Always sort deterministically to prevent fichas from shuffling or being out of order
       currentFichas = sortFichasDeterministically(currentFichas);
 
-      localStorage.setItem(STORAGE_KEY_FICHAS, JSON.stringify(currentFichas));
+      try {
+        localStorage.setItem(STORAGE_KEY_FICHAS, JSON.stringify(cleanForStorage(currentFichas)));
+      } catch (e) {
+        console.warn('LocalStorage save warning:', e);
+      }
       return currentFichas;
     } catch {
       return [...INITIAL_FICHAS];
@@ -358,6 +276,15 @@ export const storageService = {
     const userEmailNorm = (user.email || '').trim().toLowerCase();
     const userId = user.id;
 
+    // 0. Direct match for Marineuza Lina de Souza
+    if (isMarineuza(user)) {
+      const marineuzaFicha = allFichas.find((f) => isMarineuza(f));
+      if (marineuzaFicha) {
+        this.setActiveFichaId(marineuzaFicha.id);
+        return marineuzaFicha;
+      }
+    }
+
     const normalizePersonName = (name?: string): string => {
       if (!name) return '';
       return name
@@ -372,13 +299,9 @@ export const storageService = {
       (f) => f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() === userEmailNorm
     );
 
-    // 1.1 Direct fallback for Marineuza Lina de Souza
-    if (!found && userEmailNorm === 'neuzasofia555@gmail.com') {
-      found = allFichas.find(
-        (f) =>
-          f.id === 'ficha-1791910169529-c9r1' ||
-          (f.nomeAluno && normalizePersonName(f.nomeAluno).includes('marineuza'))
-      );
+    // 1.1 Direct fallback for Marineuza
+    if (!found && isMarineuza(user)) {
+      found = allFichas.find((f) => isMarineuza(f));
     }
 
     // 2. Direct match by student user ID

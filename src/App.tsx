@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ActiveScreen, FichaTCC, User } from './types';
-import { storageService } from './services/storage';
+import { storageService, isMarineuza } from './services/storage';
 import { cloudStorageService } from './services/cloudStorage';
 import { LoginScreen } from './components/LoginScreen';
 import { Header } from './components/Header';
@@ -28,23 +28,14 @@ export default function App() {
     }
   }, []);
 
-  // Real-time Firestore subscription to synchronize between multiple devices/browsers
+  // Single Get query to Firestore strictly executed once on initial startup
   useEffect(() => {
-    const unsubscribe = cloudStorageService.subscribeToFichas((cloudFichas) => {
-      setFichas(cloudFichas);
-      if (activeFicha) {
-        const updatedActive = cloudFichas.find((f) => f.id === activeFicha.id);
-        if (updatedActive) {
-          setActiveFicha(updatedActive);
-        }
-      }
-    });
-    return () => unsubscribe();
-  }, [activeFicha?.id]);
+    loadFichasData(null, false);
+  }, []);
 
-  const loadFichasData = async (currentUser?: User | null) => {
+  const loadFichasData = async (currentUser?: User | null, forceFresh = false) => {
     const activeUser = currentUser !== undefined ? currentUser : user;
-    const allFichas = await cloudStorageService.getFichas();
+    const allFichas = await cloudStorageService.getFichas(forceFresh);
     setFichas(allFichas);
 
     if (!activeUser) {
@@ -56,15 +47,16 @@ export default function App() {
       const studentFicha = await cloudStorageService.getStudentFicha(activeUser);
       setActiveFicha(studentFicha);
       storageService.setActiveFichaId(studentFicha.id);
-      const updatedAll = await cloudStorageService.getFichas();
-      setFichas(updatedAll);
     } else {
       // For Professor Orientador:
-      // The orientador evaluates student fichas. If an active ficha was previously selected to review, load it;
-      // otherwise, keep activeFicha as null so the orientador selects from the list.
+      // If an active ficha was previously selected to review, preserve it
       const activeId = storageService.getActiveFichaId();
-      const found = activeId ? allFichas.find((f) => f.id === activeId) : null;
-      setActiveFicha(found || null);
+      if (activeId) {
+        const found = allFichas.find((f) => f.id === activeId);
+        if (found) {
+          setActiveFicha(found);
+        }
+      }
     }
   };
 
@@ -146,8 +138,10 @@ export default function App() {
   const userEmailNorm = (user.email || '').trim().toLowerCase();
   const currentFicha = activeFicha || (
     user.role === 'aluno'
-      ? (fichas.find(f => (f.usuarioEmail || '').trim().toLowerCase() === userEmailNorm) ?? storageService.getStudentFicha(user))
-      : (fichas.length > 0 ? fichas[0] : storageService.getStudentFicha(user))
+      ? (isMarineuza(user)
+          ? (fichas.find(f => isMarineuza(f)) ?? storageService.getStudentFicha(user))
+          : (fichas.find(f => (f.usuarioEmail || '').trim().toLowerCase() === userEmailNorm) ?? storageService.getStudentFicha(user)))
+      : ((storageService.getActiveFichaId() ? fichas.find(f => f.id === storageService.getActiveFichaId()) : null) || fichas[0] || storageService.getStudentFicha(user))
   );
 
   return (
@@ -178,6 +172,7 @@ export default function App() {
             fichas={fichas}
             onSaveFicha={handleSaveFicha}
             onDeleteFicha={handleDeleteFicha}
+            onRefreshFichas={() => loadFichasData(user, true)}
             onSelectFichaForPreview={(ficha) => {
               storageService.setActiveFichaId(ficha.id);
               setActiveFicha(ficha);
