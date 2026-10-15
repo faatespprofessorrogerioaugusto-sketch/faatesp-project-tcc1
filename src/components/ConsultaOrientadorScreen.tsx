@@ -690,11 +690,7 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
           return (
             <div
               key={ficha.id}
-              className={`bg-[#0b1325] border ${
-                isMarineuzaCard
-                  ? 'border-amber-500/80 shadow-amber-500/10'
-                  : 'border-slate-800 hover:border-amber-500/50'
-              } rounded-2xl p-5 flex flex-col justify-between shadow-lg transition-all group`}
+              className="bg-[#0b1325] border border-slate-800 hover:border-amber-500/50 rounded-2xl p-5 flex flex-col justify-between shadow-lg transition-all group"
             >
               <div>
                 {/* Header Badge Row */}
@@ -703,11 +699,6 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
                     <span className="text-[10px] font-bold tracking-wider px-2.5 py-1 rounded-full uppercase bg-blue-950 text-blue-300 border border-blue-800">
                       {displayCurso}
                     </span>
-                    {isMarineuzaCard && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                        Aluna Marineusa
-                      </span>
-                    )}
                   </div>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border ${
                     ficha.status === 'aprovado' ? 'bg-emerald-950 text-emerald-300 border-emerald-800' :
@@ -759,10 +750,6 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
                     <span className="text-slate-400 font-medium">Nota TCC:</span>
                     {ficha.nota ? (
                       <span className="text-xs font-black text-amber-300">{ficha.nota}</span>
-                    ) : isMarineuzaCard ? (
-                      <span className="text-[10px] font-bold text-amber-400/90 bg-amber-950/60 border border-amber-800/80 px-2 py-0.5 rounded-md">
-                        Sem Nota • Restrição
-                      </span>
                     ) : (
                       <span className="text-xs font-medium text-slate-500 italic">Pendente</span>
                     )}

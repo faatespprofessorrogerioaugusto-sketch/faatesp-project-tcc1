@@ -110,6 +110,9 @@ export const cloudStorageService = {
       console.warn('Firestore Single Get notice (retrieving from persistent storage):', err);
     }
 
+    const deletedIds = storageService.getDeletedFichaIds();
+    firestoreFichas = firestoreFichas.filter((f) => !deletedIds.includes(f.id));
+
     if (firestoreFichas.length > 0) {
       const sorted = sortFichasDeterministically(firestoreFichas);
       inMemoryFichasCache = sorted;
@@ -242,7 +245,7 @@ export const cloudStorageService = {
       const userEmailNorm = (user.email || '').trim().toLowerCase();
       const userId = user.id;
 
-      // 1. Direct match by student email
+      // 1. Direct match by student email (strictly required)
       let found = all.find(
         (f) => f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() === userEmailNorm
       );
@@ -252,16 +255,9 @@ export const cloudStorageService = {
         found = all.find((f) => f.usuarioId === userId);
       }
 
-      // 3. Match by student name
-      if (!found && user.name) {
-        const normTarget = normalizePersonName(user.name);
-        if (normTarget.length >= 4) {
-          found = all.find((f) => {
-            const normFicha = normalizePersonName(f.nomeAluno);
-            if (!normFicha || normFicha.length < 4) return false;
-            return normFicha === normTarget || normFicha.includes(normTarget) || normTarget.includes(normFicha);
-          });
-        }
+      // 3. If orientador, return the active or default template
+      if (!found && user.role === 'orientador') {
+        found = all[0];
       }
 
       // 4. If still not found, create a brand-new persistent personal ficha for this student

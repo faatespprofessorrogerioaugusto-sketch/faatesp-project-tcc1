@@ -375,8 +375,8 @@ export const FichaForm: React.FC<FichaFormProps> = ({
     if (e) e.preventDefault();
     setErrorMessage(null);
 
-    // 1. Validar Título/Tema do TCC
-    if (!isTituloPreenchido) {
+    // 1. Validar Título/Tema do TCC (apenas para alunos)
+    if (!isTituloPreenchido && currentUser.role !== 'orientador') {
       setErrorMessage(
         'Atenção: O preenchimento do Título/Tema do TCC é obrigatório para liberar os outros campos e salvar a ficha.'
       );
@@ -385,21 +385,28 @@ export const FichaForm: React.FC<FichaFormProps> = ({
       return;
     }
 
-    // 2. Validar Nome do Aluno (Nome e Sobrenome em Maiúsculas e minúsculas)
+    // 2. Formatar ou validar Nome do Aluno
+    let finalStudentName = (formData.nomeAluno || '').trim();
     if (!studentNameValidation.isValid) {
-      setErrorMessage(
-        studentNameValidation.message ||
-          'Por favor, preencha o seu nome completo com Nome e Sobrenome no formato com iniciais Maiúsculas e minúsculas (Ex: Maria da Silva).'
-      );
-      nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      nameInputRef.current?.focus();
-      return;
+      if (studentNameValidation.suggestedName) {
+        finalStudentName = studentNameValidation.suggestedName;
+      } else if (currentUser.role === 'orientador') {
+        finalStudentName = formatToTitleCase(finalStudentName);
+      } else if (!finalStudentName) {
+        setErrorMessage(
+          'Por favor, preencha o seu nome completo com Nome e Sobrenome (Ex: Maria da Silva).'
+        );
+        nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        nameInputRef.current?.focus();
+        return;
+      }
     }
 
     setIsSaving(true);
     const isStudent = currentUser.role === 'aluno';
     const fichaToSave: FichaTCC = {
       ...formData,
+      nomeAluno: finalStudentName || formData.nomeAluno,
       usuarioId: formData.usuarioId || (isStudent ? currentUser.id : ''),
       usuarioEmail: formData.usuarioEmail || (isStudent ? currentUser.email : ''),
       parecerAtendido: isStudent && Boolean(formData.parecerOrientador?.trim()) ? true : formData.parecerAtendido,
@@ -415,11 +422,11 @@ export const FichaForm: React.FC<FichaFormProps> = ({
     }
     setIsSaving(false);
     setJustSaved(true);
-    setSaveSuccessMsg('Ficha salva com sucesso! Os dados estão sincronizados na nuvem.');
+    setSaveSuccessMsg('✅ Ficha salva com sucesso! Os dados estão sincronizados na nuvem.');
     setTimeout(() => {
       setJustSaved(false);
       setSaveSuccessMsg('');
-    }, 4000);
+    }, 4500);
   };
 
   return (
@@ -462,11 +469,35 @@ export const FichaForm: React.FC<FichaFormProps> = ({
           </button>
 
           <button
-            type="submit"
-            className="flex-1 sm:flex-initial px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs sm:text-sm rounded-lg shadow transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              handleSubmit(e);
+            }}
+            disabled={isSaving}
+            className={`flex-1 sm:flex-initial px-4 py-2 font-bold text-xs sm:text-sm rounded-lg shadow-lg transition-all flex items-center justify-center space-x-1.5 cursor-pointer ${
+              justSaved
+                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/50 scale-[1.02]'
+                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-900/50 active:scale-95'
+            }`}
+            title="Salvar alterações na ficha de TCC"
           >
-            <Save className="w-4 h-4" />
-            <span>Salvar Ficha</span>
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+                <span>Salvando...</span>
+              </>
+            ) : justSaved ? (
+              <>
+                <Check className="w-4 h-4 text-emerald-200" />
+                <span>Salvo com Sucesso!</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                <span>Salvar Ficha</span>
+              </>
+            )}
           </button>
 
           {/* Direct Export Buttons staying in place */}
@@ -505,6 +536,23 @@ export const FichaForm: React.FC<FichaFormProps> = ({
             type="button"
             onClick={() => setErrorMessage(null)}
             className="text-xs px-2.5 py-1 bg-rose-900/60 hover:bg-rose-800 text-rose-100 rounded-lg transition-colors cursor-pointer shrink-0"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
+
+      {/* Success Notification Banner */}
+      {saveSuccessMsg && (
+        <div className="p-4 bg-emerald-950/95 border-2 border-emerald-500 text-emerald-200 rounded-2xl text-xs sm:text-sm font-semibold flex items-center justify-between gap-3 shadow-2xl animate-fadeIn">
+          <div className="flex items-center space-x-2.5">
+            <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+            <span>{saveSuccessMsg}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSaveSuccessMsg('')}
+            className="text-xs px-2.5 py-1 bg-emerald-900/60 hover:bg-emerald-800 text-emerald-100 rounded-lg transition-colors cursor-pointer shrink-0"
           >
             Fechar
           </button>

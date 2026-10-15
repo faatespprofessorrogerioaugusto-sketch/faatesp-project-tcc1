@@ -8,7 +8,8 @@ const STORAGE_KEY_ACTIVE_FICHA = 'pm_faatesp_active_ficha_id';
 const STORAGE_KEY_ACCESS_LOGS = 'pm_faatesp_access_logs';
 const STORAGE_KEY_INSTITUTIONAL_LOGO = 'pm_faatesp_institutional_logo';
 const STORAGE_KEY_SCHEMA_VERSION = 'pm_faatesp_schema_version';
-const CURRENT_SCHEMA_VERSION = 'v20261014_single_get_firestore_v2';
+const STORAGE_KEY_DELETED_FICHAS = 'pm_faatesp_deleted_fichas';
+const CURRENT_SCHEMA_VERSION = 'v20261014_clean_v3';
 
 export function isMarineuza(item?: { id?: string; usuarioEmail?: string; email?: string; nomeAluno?: string; name?: string } | null): boolean {
   if (!item) return false;
@@ -17,13 +18,10 @@ export function isMarineuza(item?: { id?: string; usuarioEmail?: string; email?:
   const email = (item.usuarioEmail || item.email || '').trim().toLowerCase();
   if (
     email === 'neuzasofia555@gmail.com' ||
-    email === 'marineuza.souza@gmail.com' ||
-    email === 'nauzasofia555@gmail.com'
+    email === 'marineuza.souza@gmail.com'
   ) {
     return true;
   }
-  const name = (item.nomeAluno || item.name || '').trim().toLowerCase();
-  if (name.includes('marineuza') || name.includes('marineusa')) return true;
   return false;
 }
 
@@ -197,6 +195,27 @@ export const storageService = {
     return this.getUserAccessLogs(userEmailOrId).length;
   },
 
+  getDeletedFichaIds(): string[] {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_DELETED_FICHAS);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  addDeletedFichaId(id: string): void {
+    try {
+      const deleted = this.getDeletedFichaIds();
+      if (!deleted.includes(id)) {
+        deleted.push(id);
+        localStorage.setItem(STORAGE_KEY_DELETED_FICHAS, JSON.stringify(deleted));
+      }
+    } catch (e) {
+      console.error('Error recording deleted ficha ID', e);
+    }
+  },
+
   // Fichas Management
   getFichas(): FichaTCC[] {
     try {
@@ -210,6 +229,7 @@ export const storageService = {
 
       const data = localStorage.getItem(STORAGE_KEY_FICHAS);
       const institutionalLogo = this.getInstitutionalLogo();
+      const deletedIds = this.getDeletedFichaIds();
 
       let currentFichas: FichaTCC[] = [];
 
@@ -225,28 +245,8 @@ export const storageService = {
         }
       }
 
-      // Guarantee each canonical pre-registered student is updated with correct course & title
-      let hasChanged = false;
-      for (const canonical of INITIAL_FICHAS) {
-        const index = currentFichas.findIndex(
-          (f) =>
-            f.id === canonical.id ||
-            (f.usuarioEmail && canonical.usuarioEmail && f.usuarioEmail.trim().toLowerCase() === canonical.usuarioEmail.trim().toLowerCase())
-        );
-        if (index >= 0) {
-          // If cached version has wrong course or title, replace it completely!
-          if (
-            currentFichas[index].curso !== canonical.curso ||
-            currentFichas[index].tituloTrabalho !== canonical.tituloTrabalho
-          ) {
-            currentFichas[index] = { ...canonical, logoUrl: institutionalLogo || canonical.logoUrl || '' };
-            hasChanged = true;
-          }
-        } else {
-          currentFichas.unshift({ ...canonical, logoUrl: institutionalLogo || canonical.logoUrl || '' });
-          hasChanged = true;
-        }
-      }
+      // Filter out permanently deleted fichas
+      currentFichas = currentFichas.filter((f) => !deletedIds.includes(f.id));
 
       // Always sort deterministically to prevent fichas from shuffling or being out of order
       currentFichas = sortFichasDeterministically(currentFichas);
@@ -268,8 +268,8 @@ export const storageService = {
   },
 
   /**
-   * Resilient student retrieval: guarantees that student's saved data
-   * clones the exact ficha present in Orientador mode.
+   * Resilient student retrieval: guarantees that each student accesses their own ficha
+   * strictly tied to their authenticated email address.
    */
   getStudentFicha(user: User): FichaTCC {
     const allFichas = this.getFichas();
@@ -285,66 +285,26 @@ export const storageService = {
       }
     }
 
-    const normalizePersonName = (name?: string): string => {
-      if (!name) return '';
-      return name
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, '');
-    };
-
-    // 1. Direct match by student email
+    // 1. Direct match by student email (strictly required to prevent cross-account contamination)
     let found = allFichas.find(
       (f) => f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() === userEmailNorm
     );
-
-    // 1.1 Direct fallback for Marineuza
-    if (!found && isMarineuza(user)) {
-      found = allFichas.find((f) => isMarineuza(f));
-    }
 
     // 2. Direct match by student user ID
     if (!found) {
       found = allFichas.find((f) => f.usuarioId === userId);
     }
 
-    // 4. Match by student name with accent and space normalization
-    if (!found && user.name) {
-      const normTarget = normalizePersonName(user.name);
-      if (normTarget.length >= 4) {
-        found = allFichas.find((f) => {
-          if (f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() !== userEmailNorm) {
-            return false;
-          }
-          const normFicha = normalizePersonName(f.nomeAluno);
-          if (normFicha.length < 4) return false;
-          return normFicha === normTarget || normFicha.includes(normTarget) || normTarget.includes(normFicha);
-        });
-      }
+    // 3. Fallback for Orientador viewing their own default template
+    if (!found && user.role === 'orientador') {
+      found = allFichas[0];
     }
 
-    // 4. Match by email username prefix against student name (NEVER match a ficha belonging to another email)
-    if (!found && user.email) {
-      const emailPrefix = normalizePersonName(user.email.split('@')[0]);
-      if (emailPrefix.length >= 4) {
-        found = allFichas.find((f) => {
-          if (f.usuarioEmail && f.usuarioEmail.trim().toLowerCase() !== userEmailNorm) {
-            return false;
-          }
-          const normFicha = normalizePersonName(f.nomeAluno);
-          if (normFicha.length < 4) return false;
-          return normFicha === emailPrefix || normFicha.includes(emailPrefix) || emailPrefix.includes(normFicha);
-        });
-      }
-    }
-
-    // 5. If none exists, create and bind a brand new persistent ficha for this student
+    // 4. If none exists, create and bind a brand new persistent ficha for this student
     if (!found) {
       found = this.createNewFicha(user);
       found.usuarioEmail = user.email;
       found.usuarioId = user.id;
-      // Do NOT pre-fill student name from email username. Leave empty for mandatory student input.
       if (user.role === 'orientador' && user.name) {
         found.nomeAluno = user.name;
       }
@@ -358,10 +318,6 @@ export const storageService = {
       }
       if (found.usuarioId !== user.id) {
         found.usuarioId = user.id;
-        needsUpdate = true;
-      }
-      if (found.id === 'ficha-faatesp-001' && !found.tituloTrabalho) {
-        found.curso = '';
         needsUpdate = true;
       }
       if (needsUpdate) {
@@ -401,8 +357,9 @@ export const storageService = {
 
   deleteFicha(id: string): void {
     try {
+      this.addDeletedFichaId(id);
       const fichas = this.getFichas().filter((f) => f.id !== id);
-      localStorage.setItem(STORAGE_KEY_FICHAS, JSON.stringify(fichas));
+      localStorage.setItem(STORAGE_KEY_FICHAS, JSON.stringify(cleanForStorage(fichas)));
       if (this.getActiveFichaId() === id) {
         localStorage.removeItem(STORAGE_KEY_ACTIVE_FICHA);
       }
