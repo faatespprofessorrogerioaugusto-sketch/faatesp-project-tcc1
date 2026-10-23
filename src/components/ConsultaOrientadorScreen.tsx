@@ -78,6 +78,12 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
   onNavigateToEdit,
   onNavigateMain
 }) => {
+  const [localFichas, setLocalFichas] = useState<FichaTCC[]>(fichas);
+
+  useEffect(() => {
+    setLocalFichas(fichas);
+  }, [fichas]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
   const [cursoFilter, setCursoFilter] = useState<string>('todos');
@@ -111,7 +117,7 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
 
   // States for Email Modal & Server-side Dispatch
   const [emailModalFicha, setEmailModalFicha] = useState<FichaTCC | null>(null);
-  const activeEmailFicha = emailModalFicha ? (fichas.find(f => f.id === emailModalFicha.id) || emailModalFicha) : null;
+  const activeEmailFicha = emailModalFicha ? (localFichas.find(f => f.id === emailModalFicha.id) || emailModalFicha) : null;
   const [emailModalTab, setEmailModalTab] = useState<'composer' | 'ficha_preview' | 'smtp' | 'history'>('composer');
   const [destinatarioEmail, setDestinatarioEmail] = useState<string>('');
   const [emailSubject, setEmailSubject] = useState<string>('');
@@ -203,10 +209,10 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
   }, []);
 
   // Extract unique courses for filter
-  const cursosDisponiveis = Array.from(new Set(fichas.map(f => f.curso).filter(Boolean)));
+  const cursosDisponiveis = Array.from(new Set(localFichas.map(f => f.curso).filter(Boolean)));
 
   // Filter fichas
-  const filteredFichas = fichas.filter(f => {
+  const filteredFichas = localFichas.filter(f => {
     const matchSearch = 
       (f.nomeAluno || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (f.tituloTrabalho || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -219,9 +225,9 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
   });
 
   // Calculate statistics
-  const totalFichas = fichas.length;
-  const pendentesParecer = fichas.filter(f => !f.parecerOrientador).length;
-  const aprovadas = fichas.filter(f => f.status === 'aprovado' || f.status === 'concluido').length;
+  const totalFichas = localFichas.length;
+  const pendentesParecer = localFichas.filter(f => !f.parecerOrientador).length;
+  const aprovadas = localFichas.filter(f => f.status === 'aprovado' || f.status === 'concluido').length;
 
   const handleManualRefresh = async () => {
     if (!onRefreshFichas || isRefreshing) return;
@@ -571,39 +577,29 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
       ultimaAtualizacao: new Date().toISOString()
     };
 
-    // 1. Ensure immediate local storage update
+    // 1. Instantly update local cards list in 0 ms!
+    setLocalFichas((prev) => prev.map((f) => (f.id === updatedFicha.id ? updatedFicha : f)));
+
+    // 2. Ensure immediate local storage update
     storageService.saveFicha(updatedFicha);
 
-    // 2. CRITICAL: Immediately close modals synchronously so user is returned to cards list with ZERO delay
+    // 3. CRITICAL: Immediately close modals synchronously so user is returned to cards list with ZERO delay
     setSelectedFicha(null);
     setEmailModalFicha(null);
     setIsSavingReview(false);
 
-    // 3. Show feedback toast on cards list
-    if (resolvedStudentEmail && resolvedStudentEmail.includes('@')) {
-      setToastNotification({
-        type: 'info',
-        title: 'Parecer Salvo!',
-        message: `Parecer de ${updatedFicha.nomeAluno} salvo no banco de dados! Disparando notificação para ${resolvedStudentEmail}...`
-      });
-    } else {
-      setToastNotification({
-        type: 'success',
-        title: '✓ Parecer Salvo com Sucesso!',
-        message: `✓ Parecer e nota de ${updatedFicha.nomeAluno} salvos no banco de dados. Pronto para próxima avaliação!`
-      });
-    }
+    // 4. Show prominent success feedback toast on cards list
+    setToastNotification({
+      type: 'success',
+      title: '✓ Parecer Salvo com Sucesso!',
+      message: `✓ Parecer e nota de ${updatedFicha.nomeAluno} salvos no banco de dados. Ficha atualizada e pronta na lista!`
+    });
 
-    // 4. Background cloud sync
+    // 5. Background cloud sync
     try {
       onSaveFicha(updatedFicha);
     } catch (err) {
       console.error('Erro ao salvar parecer do orientador:', err);
-    }
-
-    // 5. Background email notification if email exists
-    if (resolvedStudentEmail && resolvedStudentEmail.includes('@')) {
-      triggerAutomaticEmailNotification(updatedFicha, resolvedStudentEmail);
     }
 
     if (downloadPdfAfter) {
@@ -632,37 +628,40 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
       ultimaAtualizacao: new Date().toISOString()
     };
 
-    // 1. Immediate local persistence
+    // 1. Instantly update cards list in 0 ms!
+    setLocalFichas((prev) => prev.map((f) => (f.id === updatedFicha.id ? updatedFicha : f)));
+
+    // 2. Immediate local persistence
     storageService.saveFicha(updatedFicha);
 
-    // 2. CRITICAL: Immediately close modals synchronously so user returns to cards list with ZERO delay
+    // 3. CRITICAL: Immediately close modals synchronously so user returns to cards list with ZERO delay
     setSelectedFicha(null);
     setEmailModalFicha(null);
     setIsSavingReview(false);
 
-    // 3. Immediate toast feedback on cards list
+    // 4. Immediate toast feedback on cards list
     if (resolvedStudentEmail && resolvedStudentEmail.includes('@')) {
       setToastNotification({
         type: 'info',
-        title: 'Salvando e Disparando E-mail...',
+        title: '✓ Parecer Salvo! Disparando E-mail...',
         message: `Parecer de ${updatedFicha.nomeAluno} salvo! Disparando e-mail com PDF anexo para ${resolvedStudentEmail}...`
       });
     } else {
       setToastNotification({
-        type: 'warning',
-        title: 'Parecer Salvo no Banco de Dados',
-        message: `Parecer de ${updatedFicha.nomeAluno} salvo. Atenção: Aluno não possui e-mail cadastrado para envio.`
+        type: 'success',
+        title: '✓ Parecer Salvo com Sucesso!',
+        message: `Parecer de ${updatedFicha.nomeAluno} salvo no banco de dados. Aluno não possui e-mail cadastrado.`
       });
     }
 
-    // 4. Background cloud sync
+    // 5. Background cloud sync
     try {
       onSaveFicha(updatedFicha);
     } catch (err) {
       console.error('Erro ao sincronizar parecer do orientador:', err);
     }
 
-    // 5. Background email dispatch
+    // 6. Background email dispatch
     if (resolvedStudentEmail && resolvedStudentEmail.includes('@')) {
       triggerAutomaticEmailNotification(updatedFicha, resolvedStudentEmail);
     }
@@ -1068,7 +1067,7 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
               setEmailModalFicha(null);
             }
           }}
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
         >
           <div className="bg-[#0b1325] border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
             {/* Modal Header */}
@@ -1490,7 +1489,7 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
               setSelectedFicha(null);
             }
           }}
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+          className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
         >
           <div className="bg-[#0b1325] border border-purple-500/40 rounded-2xl w-full max-w-xl shadow-2xl flex flex-col overflow-hidden animate-fade-in my-8">
             {/* Header */}

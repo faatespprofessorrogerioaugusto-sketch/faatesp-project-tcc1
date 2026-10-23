@@ -96,11 +96,26 @@ export default function App() {
   };
 
   const handleSaveFicha = async (updatedFicha: FichaTCC) => {
-    await cloudStorageService.saveFicha(updatedFicha);
+    // 1. Immediately update React state synchronously (0 ms)
+    setFichas((prevFichas) => {
+      const idx = prevFichas.findIndex((f) => f.id === updatedFicha.id);
+      if (idx >= 0) {
+        const copy = [...prevFichas];
+        copy[idx] = updatedFicha;
+        return copy;
+      }
+      return [updatedFicha, ...prevFichas];
+    });
     setActiveFicha(updatedFicha);
     storageService.setActiveFichaId(updatedFicha.id);
-    const refreshed = await cloudStorageService.getFichas();
-    setFichas(refreshed);
+    storageService.saveFicha(updatedFicha);
+
+    // 2. Persist to cloud/backend asynchronously without blocking UI
+    try {
+      await cloudStorageService.saveFicha(updatedFicha);
+    } catch (err) {
+      console.warn('Erro ao salvar no cloudStorage:', err);
+    }
   };
 
   const handleCreateNew = async () => {
