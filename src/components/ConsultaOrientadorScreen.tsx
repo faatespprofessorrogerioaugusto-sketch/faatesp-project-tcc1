@@ -279,16 +279,33 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
 
   const handleSendEmailDirect = async () => {
     if (!emailModalFicha) return;
-    setIsSendingEmailPdf(true);
-    setEmailSentSuccess(false);
-    setLastSendResult(null);
 
-    const targetEmail = destinatarioEmail || emailModalFicha.usuarioEmail || currentUser.email || 'rogerioaugusto@gmail.com';
-    const fixedSubject = 'FICHA DE ORIENTAÇÃO - FAATESP';
+    const targetEmail = (destinatarioEmail || emailModalFicha.usuarioEmail || currentUser.email || 'rogerioaugusto@gmail.com').trim();
+    const fixedSubject = emailSubject || 'FICHA DE ORIENTAÇÃO - FAATESP';
 
     // Get latest active ficha from state
     const currentFicha = fichas.find(f => f.id === emailModalFicha.id) || emailModalFicha;
     const studentName = currentFicha.nomeAluno || 'Aluno';
+    const bodyToSend = emailBody;
+    const customSmtpPayload = useCustomSmtp && smtpHost && smtpUser && smtpPass ? {
+      host: smtpHost,
+      port: Number(smtpPort) || 587,
+      user: smtpUser,
+      pass: smtpPass,
+      from: smtpFrom
+    } : null;
+
+    // 1. Return AUTOMATICALLY to the cards list right away (no black screen or waiting)
+    setEmailModalFicha(null);
+    setSelectedFicha(null);
+    setIsSendingEmailPdf(true);
+
+    // 2. Show floating status toast at top of cards list
+    setToastNotification({
+      type: 'info',
+      title: 'Disparando E-mail...',
+      message: `Gerando PDF oficial e enviando e-mail para ${targetEmail} (${studentName})...`
+    });
 
     try {
       setFichaForEmailExport(currentFicha);
@@ -300,21 +317,13 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
       const pdfBase64 = await generatePdfBase64('email-ficha-preview-container', fileName, currentFicha);
 
       // 2. Send email via Express server endpoint
-      const customSmtpPayload = useCustomSmtp && smtpHost && smtpUser && smtpPass ? {
-        host: smtpHost,
-        port: Number(smtpPort) || 587,
-        user: smtpUser,
-        pass: smtpPass,
-        from: smtpFrom
-      } : null;
-
       const res = await fetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: targetEmail,
           subject: fixedSubject,
-          body: emailBody,
+          body: bodyToSend,
           pdfBase64,
           pdfFilename: fileName,
           studentName: currentFicha.nomeAluno,
@@ -329,36 +338,24 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
         setEmailSentSuccess(true);
         fetchEmailHistory();
 
-        // Close BOTH modals immediately so user is returned cleanly to cards list without black overlay
-        setEmailModalFicha(null);
-        setSelectedFicha(null);
-
         setToastNotification({
           type: 'success',
-          title: 'E-mail com PDF Enviado com Sucesso!',
-          message: data.message || `E-mail com PDF anexo disparado com sucesso para ${targetEmail} (${studentName}).`
+          title: '✓ E-mail com PDF Enviado com Sucesso!',
+          message: data.message || `E-mail com PDF anexo entregue para ${targetEmail} (${studentName}).`
         });
       } else {
-        setLastSendResult({
-          success: false,
-          message: data.message || 'Erro no envio do e-mail.'
-        });
         setToastNotification({
-          type: 'error',
-          title: 'Erro no Envio de E-mail',
-          message: data.message || 'Falha ao disparar e-mail. Verifique a conexão ou tente novamente.'
+          type: 'warning',
+          title: 'Aviso sobre Envio de E-mail',
+          message: data.message || 'Falha ao entregar e-mail pelo servidor. Verifique o endereço do destinatário.'
         });
       }
     } catch (error: any) {
       console.error('Erro ao gerar/enviar PDF por e-mail:', error);
-      setLastSendResult({
-        success: false,
-        message: `Falha na requisição de e-mail: ${error.message || 'Erro de conexão'}`
-      });
       setToastNotification({
         type: 'error',
-        title: 'Falha no Envio',
-        message: `Erro de conexão: ${error.message || 'Erro inesperado'}`
+        title: 'Erro de Conexão no Envio',
+        message: `Falha na requisição: ${error.message || 'Erro inesperado'}.`
       });
     } finally {
       setIsSendingEmailPdf(false);
@@ -545,32 +542,36 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
     // 1. Ensure immediate local storage update
     storageService.saveFicha(updatedFicha);
 
-    try {
-      await onSaveFicha(updatedFicha);
-    } catch (err) {
-      console.error('Erro ao salvar parecer do orientador:', err);
-    } finally {
-      setIsSavingReview(false);
-    }
-
-    // 2. Immediately close modals so user is returned to cards list with NO black overlay
+    // 2. CRITICAL: Immediately close modals synchronously so user is returned to cards list with ZERO delay
     setSelectedFicha(null);
     setEmailModalFicha(null);
+    setIsSavingReview(false);
 
-    // 3. Background email dispatch & top floating notification
+    // 3. Show feedback toast on cards list
     if (resolvedStudentEmail && resolvedStudentEmail.includes('@')) {
-      triggerAutomaticEmailNotification(updatedFicha, resolvedStudentEmail);
       setToastNotification({
-        type: 'success',
-        title: 'Parecer Salvo com Sucesso!',
-        message: `✓ Parecer e nota de ${updatedFicha.nomeAluno} salvos no banco de dados! Notificação enviada para ${resolvedStudentEmail}.`
+        type: 'info',
+        title: 'Parecer Salvo!',
+        message: `Parecer de ${updatedFicha.nomeAluno} salvo no banco de dados! Disparando notificação para ${resolvedStudentEmail}...`
       });
     } else {
       setToastNotification({
         type: 'success',
-        title: 'Parecer Salvo com Sucesso!',
-        message: `✓ Parecer e nota de ${updatedFicha.nomeAluno} salvos com sucesso no banco de dados. Pronto para próxima avaliação!`
+        title: '✓ Parecer Salvo com Sucesso!',
+        message: `✓ Parecer e nota de ${updatedFicha.nomeAluno} salvos no banco de dados. Pronto para próxima avaliação!`
       });
+    }
+
+    // 4. Background cloud sync
+    try {
+      onSaveFicha(updatedFicha);
+    } catch (err) {
+      console.error('Erro ao salvar parecer do orientador:', err);
+    }
+
+    // 5. Background email notification if email exists
+    if (resolvedStudentEmail && resolvedStudentEmail.includes('@')) {
+      triggerAutomaticEmailNotification(updatedFicha, resolvedStudentEmail);
     }
 
     if (downloadPdfAfter) {
@@ -581,54 +582,57 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
   const handleSaveAndSendEmail = async () => {
     if (!selectedFicha) return;
 
-    setIsSavingReview(true);
-
+    const currentFichaTarget = selectedFicha;
     const hasParecerText = Boolean(parecerText?.trim());
-    const isNewOrUpdatedParecer = hasParecerText && parecerText.trim() !== (selectedFicha.parecerOrientador || '').trim();
-    const resolvedStudentEmail = (alunoEmailInput || selectedFicha.usuarioEmail || '').trim();
+    const isNewOrUpdatedParecer = hasParecerText && parecerText.trim() !== (currentFichaTarget.parecerOrientador || '').trim();
+    const resolvedStudentEmail = (alunoEmailInput || currentFichaTarget.usuarioEmail || '').trim();
 
     const updatedFicha: FichaTCC = {
-      ...selectedFicha,
+      ...currentFichaTarget,
       parecerOrientador: parecerText,
-      dataParecer: isNewOrUpdatedParecer ? new Date().toISOString() : (selectedFicha.dataParecer || new Date().toISOString()),
-      parecerAtendido: isNewOrUpdatedParecer ? false : (selectedFicha.parecerAtendido ?? false),
+      dataParecer: isNewOrUpdatedParecer ? new Date().toISOString() : (currentFichaTarget.dataParecer || new Date().toISOString()),
+      parecerAtendido: isNewOrUpdatedParecer ? false : (currentFichaTarget.parecerAtendido ?? false),
       nota: notaInput,
       status: statusInput,
-      usuarioEmail: resolvedStudentEmail || selectedFicha.usuarioEmail,
-      assinaturaUrl: assinaturaUrl || selectedFicha.assinaturaUrl || getSignatureForProfessor(selectedFicha.professorOrientador || currentUser.name),
-      professorOrientador: selectedFicha.professorOrientador || currentUser.name,
+      usuarioEmail: resolvedStudentEmail || currentFichaTarget.usuarioEmail,
+      assinaturaUrl: assinaturaUrl || currentFichaTarget.assinaturaUrl || getSignatureForProfessor(currentFichaTarget.professorOrientador || currentUser.name),
+      professorOrientador: currentFichaTarget.professorOrientador || currentUser.name,
       ultimaAtualizacao: new Date().toISOString()
     };
 
-    // 1. Immediate local persistence and sync
+    // 1. Immediate local persistence
     storageService.saveFicha(updatedFicha);
 
-    try {
-      await onSaveFicha(updatedFicha);
-    } catch (err) {
-      console.error('Erro ao salvar parecer do orientador:', err);
-    } finally {
-      setIsSavingReview(false);
-    }
-
-    // 2. Immediately close modals so user is returned to the cards list with NO black overlay
+    // 2. CRITICAL: Immediately close modals synchronously so user returns to cards list with ZERO delay
     setSelectedFicha(null);
     setEmailModalFicha(null);
+    setIsSavingReview(false);
 
-    // 3. Dispatch email with PDF attachment
+    // 3. Immediate toast feedback on cards list
     if (resolvedStudentEmail && resolvedStudentEmail.includes('@')) {
-      triggerAutomaticEmailNotification(updatedFicha, resolvedStudentEmail);
       setToastNotification({
-        type: 'success',
-        title: 'Parecer Salvo e E-mail Disparado!',
-        message: `✓ Parecer de ${updatedFicha.nomeAluno} salvo com sucesso! O e-mail com PDF anexo foi disparado para ${resolvedStudentEmail}.`
+        type: 'info',
+        title: 'Salvando e Disparando E-mail...',
+        message: `Parecer de ${updatedFicha.nomeAluno} salvo! Disparando e-mail com PDF anexo para ${resolvedStudentEmail}...`
       });
     } else {
       setToastNotification({
         type: 'warning',
         title: 'Parecer Salvo no Banco de Dados',
-        message: `✓ Parecer de ${updatedFicha.nomeAluno} salvo. Atenção: Aluno não possui e-mail cadastrado para envio.`
+        message: `Parecer de ${updatedFicha.nomeAluno} salvo. Atenção: Aluno não possui e-mail cadastrado para envio.`
       });
+    }
+
+    // 4. Background cloud sync
+    try {
+      onSaveFicha(updatedFicha);
+    } catch (err) {
+      console.error('Erro ao sincronizar parecer do orientador:', err);
+    }
+
+    // 5. Background email dispatch
+    if (resolvedStudentEmail && resolvedStudentEmail.includes('@')) {
+      triggerAutomaticEmailNotification(updatedFicha, resolvedStudentEmail);
     }
   };
 

@@ -202,6 +202,8 @@ app.get('/api/email-history', (req, res) => {
   res.json({ success: true, history: emailOutboxHistory });
 });
 
+let cachedEtherealAccount: any = null;
+
 // Helper to get or create mail transporter
 async function getMailTransporter(customSmtp?: any) {
   let transporter: any;
@@ -220,6 +222,9 @@ async function getMailTransporter(customSmtp?: any) {
       host: smtpHost,
       port: smtpPort,
       secure: smtpPort === 465,
+      connectionTimeout: 10000,
+      greetingTimeout: 8000,
+      socketTimeout: 15000,
       auth: {
         user: smtpUser,
         pass: smtpPass,
@@ -229,15 +234,26 @@ async function getMailTransporter(customSmtp?: any) {
       }
     });
   } else {
-    const testAccount = await nodemailer.createTestAccount();
-    fromAddress = `"FAATESP TCC (Notificações)" <${testAccount.user}>`;
+    if (!cachedEtherealAccount) {
+      try {
+        cachedEtherealAccount = await nodemailer.createTestAccount();
+      } catch (err) {
+        console.warn('Fallback test account error:', err);
+      }
+    }
+    const testUser = cachedEtherealAccount?.user || 'faatesp.tcc@ethereal.email';
+    const testPass = cachedEtherealAccount?.pass || 'testpassword';
+    fromAddress = `"FAATESP TCC (Notificações)" <${testUser}>`;
     transporter = nodemailer.createTransport({
       host: 'smtp.ethereal.email',
       port: 587,
       secure: false,
+      connectionTimeout: 10000,
+      greetingTimeout: 8000,
+      socketTimeout: 15000,
       auth: {
-        user: testAccount.user,
-        pass: testAccount.pass,
+        user: testUser,
+        pass: testPass,
       },
     });
   }
