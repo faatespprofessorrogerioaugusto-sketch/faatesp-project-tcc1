@@ -198,11 +198,14 @@ export const cloudStorageService = {
       console.warn('Server save warning:', e);
     }
 
-    // 3. Single Write to Firestore in background
+    // 3. Single Write to Firestore in background (with timeout protection so UI never blocks)
     try {
       const fichaDocRef = doc(db, FICHAS_COLLECTION, fichaId);
       const sanitized = sanitizeForFirestore(cleanForStorage([dataToSave])[0]);
-      await setDoc(fichaDocRef, sanitized, { merge: true });
+      await Promise.race([
+        setDoc(fichaDocRef, sanitized, { merge: true }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore write timeout')), 3500))
+      ]);
     } catch (e) {
       console.warn('Firestore write note:', e);
     }

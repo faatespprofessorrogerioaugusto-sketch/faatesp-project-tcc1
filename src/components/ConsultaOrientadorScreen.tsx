@@ -39,7 +39,7 @@ import { generateDocx } from '../utils/exportDocx';
 import { FichaPreview } from './FichaPreview';
 import { getSignatureForProfessor } from '../utils/signatures';
 import { getFichaExportFilename } from '../utils/filenameHelper';
-import { isMarineuza } from '../services/storage';
+import { storageService, isMarineuza } from '../services/storage';
 
 interface EmailHistoryItem {
   id: string;
@@ -90,12 +90,24 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
   const [statusInput, setStatusInput] = useState<FichaTCC['status']>('em_andamento');
   const [assinaturaUrl, setAssinaturaUrl] = useState<string>('');
   const [saveSuccessMsg, setSaveSuccessMsg] = useState(false);
+  const [isSavingReview, setIsSavingReview] = useState<boolean>(false);
+  const [justSavedReview, setJustSavedReview] = useState<boolean>(false);
   const [alunoEmailInput, setAlunoEmailInput] = useState<string>('');
   const [isAutoSendingEmail, setIsAutoSendingEmail] = useState<boolean>(false);
   const [autoSendResult, setAutoSendResult] = useState<{
     status: 'sending' | 'success' | 'warning' | 'error';
     message: string;
   } | null>(null);
+
+  // Floating Toast Notification state for main cards screen
+  const [toastNotification, setToastNotification] = useState<{
+    type: 'success' | 'warning' | 'error' | 'info';
+    title?: string;
+    message: string;
+  } | null>(null);
+
+  // Dedicated state for off-screen PDF export rendering
+  const [fichaForEmailExport, setFichaForEmailExport] = useState<FichaTCC | null>(null);
 
   // States for Email Modal & Server-side Dispatch
   const [emailModalFicha, setEmailModalFicha] = useState<FichaTCC | null>(null);
@@ -132,6 +144,29 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
   const [downloadingFicha, setDownloadingFicha] = useState<FichaTCC | null>(null);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Auto-dismiss floating toast notification after 6 seconds
+  useEffect(() => {
+    if (toastNotification) {
+      const timer = setTimeout(() => {
+        setToastNotification(null);
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastNotification]);
+
+  // Global ESC key listener to safely close any open modals and eliminate black backdrop traps
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedFicha(null);
+        setEmailModalFicha(null);
+        setDeleteModalFicha(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Fetch email history from backend outbox
   const fetchEmailHistory = async () => {
@@ -195,6 +230,8 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
     const emailToUse = isMarineuza(ficha) ? 'neuzasofia555@gmail.com' : (ficha.usuarioEmail || '');
     setAlunoEmailInput(emailToUse);
     setSaveSuccessMsg(false);
+    setIsSavingReview(false);
+    setJustSavedReview(false);
     setAutoSendResult(null);
   };
 
@@ -207,6 +244,8 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
   };
 
   const handleOpenEmailModal = (ficha: FichaTCC) => {
+    // Close review modal so dark backdrops do not stack on top of each other!
+    setSelectedFicha(null);
     setEmailModalFicha(ficha);
     setEmailModalTab('composer');
     setLastSendResult(null);
@@ -249,11 +288,15 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
 
     // Get latest active ficha from state
     const currentFicha = fichas.find(f => f.id === emailModalFicha.id) || emailModalFicha;
+    const studentName = currentFicha.nomeAluno || 'Aluno';
 
     try {
+      setFichaForEmailExport(currentFicha);
+      await new Promise(r => setTimeout(r, 120));
+
       const fileName = getFichaExportFilename(currentFicha, 'pdf');
 
-      // 1. Generate PDF base64 string ONLY
+      // 1. Generate PDF base64 string
       const pdfBase64 = await generatePdfBase64('email-ficha-preview-container', fileName, currentFicha);
 
       // 2. Send email via Express server endpoint
@@ -284,17 +327,26 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
 
       if (data.success) {
         setEmailSentSuccess(true);
-        setLastSendResult({
-          success: true,
-          message: data.message || 'E-mail disparado com sucesso!',
-          testMessageUrl: data.testMessageUrl,
-          isRealSmtp: data.isRealSmtp
-        });
         fetchEmailHistory();
+
+        // Close BOTH modals immediately so user is returned cleanly to cards list without black overlay
+        setEmailModalFicha(null);
+        setSelectedFicha(null);
+
+        setToastNotification({
+          type: 'success',
+          title: 'E-mail com PDF Enviado com Sucesso!',
+          message: data.message || `E-mail com PDF anexo disparado com sucesso para ${targetEmail} (${studentName}).`
+        });
       } else {
         setLastSendResult({
           success: false,
           message: data.message || 'Erro no envio do e-mail.'
+        });
+        setToastNotification({
+          type: 'error',
+          title: 'Erro no Envio de E-mail',
+          message: data.message || 'Falha ao disparar e-mail. Verifique a conexão ou tente novamente.'
         });
       }
     } catch (error: any) {
@@ -303,8 +355,14 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
         success: false,
         message: `Falha na requisição de e-mail: ${error.message || 'Erro de conexão'}`
       });
+      setToastNotification({
+        type: 'error',
+        title: 'Falha no Envio',
+        message: `Erro de conexão: ${error.message || 'Erro inesperado'}`
+      });
     } finally {
       setIsSendingEmailPdf(false);
+      setFichaForEmailExport(null);
     }
   };
 
@@ -380,6 +438,7 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
 
   const triggerAutomaticEmailNotification = async (ficha: FichaTCC, targetEmail: string) => {
     setIsAutoSendingEmail(true);
+    setFichaForEmailExport(ficha);
     setAutoSendResult({
       status: 'sending',
       message: `Disparando notificação em segundo plano para ${targetEmail}...`
@@ -393,8 +452,9 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
       let pdfFilename: string | undefined = undefined;
 
       try {
+        await new Promise((resolve) => setTimeout(resolve, 150));
         const previewEl = document.getElementById('email-ficha-preview-container');
-        if (previewEl && isApproved) {
+        if (previewEl) {
           pdfFilename = getFichaExportFilename(ficha, 'pdf');
           pdfBase64 = await generatePdfBase64('email-ficha-preview-container', pdfFilename, ficha);
         }
@@ -423,13 +483,23 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
       if (data.success) {
         setAutoSendResult({
           status: 'success',
-          message: `✉️ E-mail (${isApproved ? 'Tag Verde • Aprovado com Link PDF' : 'Tag Laranja • Restrições com Link de Edição'}) enviado automaticamente em segundo plano para ${targetEmail}!`
+          message: `✉️ E-mail (${isApproved ? 'Tag Verde • Aprovado' : 'Tag Laranja • Restrições'}) enviado automaticamente para ${targetEmail}!`
+        });
+        setToastNotification({
+          type: 'success',
+          title: 'E-mail Disparado com Sucesso!',
+          message: `Notificação enviada com sucesso para ${targetEmail} (${ficha.nomeAluno}).`
         });
         fetchEmailHistory();
       } else {
         setAutoSendResult({
           status: 'error',
-          message: `Falha no envio automático de e-mail: ${data.message || 'Erro no servidor'}.`
+          message: `Falha no envio de e-mail: ${data.message || 'Erro no servidor'}.`
+        });
+        setToastNotification({
+          type: 'warning',
+          title: 'Aviso sobre E-mail',
+          message: `O parecer foi salvo, mas o e-mail não pôde ser entregue: ${data.message || 'Erro no servidor'}.`
         });
       }
     } catch (err: any) {
@@ -438,13 +508,22 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
         status: 'error',
         message: `Falha na requisição de e-mail: ${err.message || 'Erro inesperado'}.`
       });
+      setToastNotification({
+        type: 'error',
+        title: 'Erro de Conexão no Envio',
+        message: `Parecer salvo. Erro ao contactar servidor de e-mail: ${err.message || 'Erro inesperado'}.`
+      });
     } finally {
       setIsAutoSendingEmail(false);
+      setFichaForEmailExport(null);
     }
   };
 
   const handleSaveReview = async (downloadPdfAfter = false) => {
     if (!selectedFicha) return;
+
+    setIsSavingReview(true);
+    setJustSavedReview(false);
 
     const hasParecerText = Boolean(parecerText?.trim());
     const isNewOrUpdatedParecer = hasParecerText && parecerText.trim() !== (selectedFicha.parecerOrientador || '').trim();
@@ -463,30 +542,93 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
       ultimaAtualizacao: new Date().toISOString()
     };
 
+    // 1. Ensure immediate local storage update
+    storageService.saveFicha(updatedFicha);
+
     try {
       await onSaveFicha(updatedFicha);
     } catch (err) {
       console.error('Erro ao salvar parecer do orientador:', err);
+    } finally {
+      setIsSavingReview(false);
     }
-    setSelectedFicha(updatedFicha);
-    setSaveSuccessMsg(true);
 
-    // Disparo Automático em Segundo Plano: O orientador salva a avaliação e o sistema envia o e-mail automaticamente (sem abrir telas extras)
+    // 2. Immediately close modals so user is returned to cards list with NO black overlay
+    setSelectedFicha(null);
+    setEmailModalFicha(null);
+
+    // 3. Background email dispatch & top floating notification
     if (resolvedStudentEmail && resolvedStudentEmail.includes('@')) {
       triggerAutomaticEmailNotification(updatedFicha, resolvedStudentEmail);
+      setToastNotification({
+        type: 'success',
+        title: 'Parecer Salvo com Sucesso!',
+        message: `✓ Parecer e nota de ${updatedFicha.nomeAluno} salvos no banco de dados! Notificação enviada para ${resolvedStudentEmail}.`
+      });
     } else {
-      setAutoSendResult({
-        status: 'warning',
-        message: 'Aviso: Parecer salvo com sucesso. Para notificar o aluno em segundo plano, preencha o e-mail dele no campo abaixo.'
+      setToastNotification({
+        type: 'success',
+        title: 'Parecer Salvo com Sucesso!',
+        message: `✓ Parecer e nota de ${updatedFicha.nomeAluno} salvos com sucesso no banco de dados. Pronto para próxima avaliação!`
       });
     }
 
-    setTimeout(() => {
-      setSaveSuccessMsg(false);
-    }, 4000);
-
     if (downloadPdfAfter) {
       handleDownloadOfficialPdf(updatedFicha);
+    }
+  };
+
+  const handleSaveAndSendEmail = async () => {
+    if (!selectedFicha) return;
+
+    setIsSavingReview(true);
+
+    const hasParecerText = Boolean(parecerText?.trim());
+    const isNewOrUpdatedParecer = hasParecerText && parecerText.trim() !== (selectedFicha.parecerOrientador || '').trim();
+    const resolvedStudentEmail = (alunoEmailInput || selectedFicha.usuarioEmail || '').trim();
+
+    const updatedFicha: FichaTCC = {
+      ...selectedFicha,
+      parecerOrientador: parecerText,
+      dataParecer: isNewOrUpdatedParecer ? new Date().toISOString() : (selectedFicha.dataParecer || new Date().toISOString()),
+      parecerAtendido: isNewOrUpdatedParecer ? false : (selectedFicha.parecerAtendido ?? false),
+      nota: notaInput,
+      status: statusInput,
+      usuarioEmail: resolvedStudentEmail || selectedFicha.usuarioEmail,
+      assinaturaUrl: assinaturaUrl || selectedFicha.assinaturaUrl || getSignatureForProfessor(selectedFicha.professorOrientador || currentUser.name),
+      professorOrientador: selectedFicha.professorOrientador || currentUser.name,
+      ultimaAtualizacao: new Date().toISOString()
+    };
+
+    // 1. Immediate local persistence and sync
+    storageService.saveFicha(updatedFicha);
+
+    try {
+      await onSaveFicha(updatedFicha);
+    } catch (err) {
+      console.error('Erro ao salvar parecer do orientador:', err);
+    } finally {
+      setIsSavingReview(false);
+    }
+
+    // 2. Immediately close modals so user is returned to the cards list with NO black overlay
+    setSelectedFicha(null);
+    setEmailModalFicha(null);
+
+    // 3. Dispatch email with PDF attachment
+    if (resolvedStudentEmail && resolvedStudentEmail.includes('@')) {
+      triggerAutomaticEmailNotification(updatedFicha, resolvedStudentEmail);
+      setToastNotification({
+        type: 'success',
+        title: 'Parecer Salvo e E-mail Disparado!',
+        message: `✓ Parecer de ${updatedFicha.nomeAluno} salvo com sucesso! O e-mail com PDF anexo foi disparado para ${resolvedStudentEmail}.`
+      });
+    } else {
+      setToastNotification({
+        type: 'warning',
+        title: 'Parecer Salvo no Banco de Dados',
+        message: `✓ Parecer de ${updatedFicha.nomeAluno} salvo. Atenção: Aluno não possui e-mail cadastrado para envio.`
+      });
     }
   };
 
@@ -539,6 +681,44 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
 
   return (
     <div className="space-y-6">
+      {/* Floating Toast Notification Banner */}
+      {toastNotification && (
+        <div className="fixed top-5 right-5 z-[9999] max-w-md w-[92vw] sm:w-auto shadow-2xl transition-all duration-300 animate-fade-in">
+          <div className={`p-4 rounded-2xl border backdrop-blur-md flex items-start space-x-3 text-sm font-sans ${
+            toastNotification.type === 'success'
+              ? 'bg-emerald-950/95 border-emerald-500/80 text-emerald-100 shadow-emerald-950/60'
+              : toastNotification.type === 'warning'
+              ? 'bg-amber-950/95 border-amber-500/80 text-amber-100 shadow-amber-950/60'
+              : 'bg-rose-950/95 border-rose-500/80 text-rose-100 shadow-rose-950/60'
+          }`}>
+            {toastNotification.type === 'success' ? (
+              <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+            ) : toastNotification.type === 'warning' ? (
+              <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            ) : (
+              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+            )}
+            <div className="flex-1 pr-2">
+              {toastNotification.title && (
+                <h4 className="font-extrabold text-sm mb-0.5 tracking-tight">
+                  {toastNotification.title}
+                </h4>
+              )}
+              <p className="text-xs leading-relaxed opacity-90 font-medium">
+                {toastNotification.message}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setToastNotification(null)}
+              className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors shrink-0 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Banner / Header */}
       <div className="bg-gradient-to-r from-amber-950/80 via-slate-900 to-slate-900 border border-amber-500/30 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none"></div>
@@ -845,7 +1025,15 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
 
       {/* Correction & Review Modal */}
       {selectedFicha && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelectedFicha(null);
+              setEmailModalFicha(null);
+            }
+          }}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+        >
           <div className="bg-[#0b1325] border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
             {/* Modal Header */}
             <div className="p-5 border-b border-slate-800 flex items-center justify-between sticky top-0 bg-[#0b1325] z-10">
@@ -865,7 +1053,10 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
 
               <button
                 type="button"
-                onClick={() => setSelectedFicha(null)}
+                onClick={() => {
+                  setSelectedFicha(null);
+                  setEmailModalFicha(null);
+                }}
                 className="p-1.5 text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -1096,102 +1287,158 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
             </div>
 
             {/* Modal Footer */}
-            <div className="p-5 border-t border-slate-800 bg-[#0b1325] sticky bottom-0 z-10 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <button
-                  type="button"
-                  onClick={() => setSelectedFicha(null)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-colors cursor-pointer"
-                >
-                  Fechar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleReturnToMain}
-                  className="px-3 py-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-colors flex items-center space-x-1.5 cursor-pointer"
-                  title="Ir para a Tela Inicial"
-                >
-                  <Home className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Tela Inicial</span>
-                </button>
-              </div>
+            <div className="p-4 sm:p-5 border-t border-slate-800 bg-[#0b1325] sticky bottom-0 z-10 flex flex-col gap-3">
+              {/* Direct Save Feedback Banner */}
+              {justSavedReview && (
+                <div className="w-full p-3 bg-emerald-950 border border-emerald-500 text-emerald-200 rounded-xl text-xs font-bold flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-lg animate-fade-in">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>✓ Parecer do aluno, nota e status salvos com sucesso no sistema e no banco de dados!</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFicha(null)}
+                    className="px-3 py-1 bg-emerald-800 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors shrink-0"
+                  >
+                    Fechar e Voltar à Lista
+                  </button>
+                </div>
+              )}
 
-              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
-                <button
-                  type="button"
-                  disabled={isAutoSendingEmail}
-                  onClick={() => handleSaveReview(false)}
-                  className="px-4 py-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50"
-                  title="Salvar avaliação e disparar e-mail de notificação automaticamente em segundo plano ao aluno"
-                >
-                  {isAutoSendingEmail ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  ) : (
-                    <Save className="w-4 h-4" />
-                  )}
-                  <span>Salvar Parecer (Notifica Aluno)</span>
-                </button>
+              {/* Background Email Notification Notice */}
+              {isAutoSendingEmail && (
+                <div className="w-full p-2 bg-indigo-950/80 border border-indigo-700/80 text-indigo-300 rounded-xl text-xs flex items-center space-x-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400 shrink-0" />
+                  <span>Enviando e-mail de notificação ao aluno em segundo plano...</span>
+                </div>
+              )}
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (selectedFicha) {
-                      const freshFicha: FichaTCC = {
-                        ...selectedFicha,
-                        parecerOrientador: parecerText,
-                        nota: notaInput,
-                        status: statusInput,
-                        usuarioEmail: alunoEmailInput || selectedFicha.usuarioEmail,
-                        assinaturaUrl: assinaturaUrl || selectedFicha.assinaturaUrl,
-                        professorOrientador: selectedFicha.professorOrientador || currentUser.name,
-                        ultimaAtualizacao: new Date().toISOString()
-                      };
-                      handleOpenEmailModal(freshFicha);
-                    }
-                  }}
-                  className="px-3 py-2 bg-purple-950/80 hover:bg-purple-900 text-purple-300 border border-purple-800 text-xs font-medium rounded-xl transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
-                  title="Abrir opções de e-mail personalizado manual"
-                >
-                  <Mail className="w-3.5 h-3.5 text-purple-400" />
-                  <span>E-mail Personalizado</span>
-                </button>
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedFicha(null);
+                      setEmailModalFicha(null);
+                    }}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                  >
+                    Fechar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleReturnToMain}
+                    className="px-3 py-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-colors flex items-center space-x-1.5 cursor-pointer"
+                    title="Ir para a Tela Inicial"
+                  >
+                    <Home className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Tela Inicial</span>
+                  </button>
+                </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleSaveReview(false);
-                    if (selectedFicha) {
-                      handleDownloadOfficialDocx({
-                        ...selectedFicha,
-                        parecerOrientador: parecerText,
-                        nota: notaInput,
-                        status: statusInput
-                      });
-                    }
-                  }}
-                  className="px-3.5 py-2 bg-blue-900 hover:bg-blue-800 text-white text-xs font-bold rounded-xl transition-all shadow flex items-center justify-center space-x-1.5 cursor-pointer"
-                >
-                  <FileText className="w-4 h-4 text-blue-300" />
-                  <span>Baixar DOCX</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+                  <button
+                    type="button"
+                    id="btn_salvar_parecer_aluno"
+                    disabled={isSavingReview}
+                    onClick={() => handleSaveReview(false)}
+                    className="px-4 py-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-60"
+                    title="Salvar parecer e nota no banco de dados e retornar à lista de fichas"
+                  >
+                    {isSavingReview ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span>Salvando Parecer...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        <span>Salvar Parecer do Aluno</span>
+                      </>
+                    )}
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => handleSaveReview(true)}
-                  className="px-3.5 py-2 bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all shadow flex items-center justify-center space-x-1.5 cursor-pointer"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Baixar PDF</span>
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    id="btn_salvar_e_disparar_email"
+                    disabled={isSavingReview}
+                    onClick={handleSaveAndSendEmail}
+                    className="px-4 py-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-extrabold rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-60"
+                    title="Salvar parecer e disparar e-mail com PDF anexo para o aluno imediatamente"
+                  >
+                    <Send className="w-4 h-4 text-purple-200" />
+                    <span>Salvar e Disparar E-mail</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedFicha) {
+                        const freshFicha: FichaTCC = {
+                          ...selectedFicha,
+                          parecerOrientador: parecerText,
+                          nota: notaInput,
+                          status: statusInput,
+                          usuarioEmail: alunoEmailInput || selectedFicha.usuarioEmail,
+                          assinaturaUrl: assinaturaUrl || selectedFicha.assinaturaUrl,
+                          professorOrientador: selectedFicha.professorOrientador || currentUser.name,
+                          ultimaAtualizacao: new Date().toISOString()
+                        };
+                        handleOpenEmailModal(freshFicha);
+                      }
+                    }}
+                    className="px-3 py-2 bg-purple-950/80 hover:bg-purple-900 text-purple-300 border border-purple-800 text-xs font-medium rounded-xl transition-colors flex items-center justify-center space-x-1.5 cursor-pointer"
+                    title="Abrir opções de e-mail personalizado manual"
+                  >
+                    <Mail className="w-3.5 h-3.5 text-purple-400" />
+                    <span>E-mail Personalizado</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSaveReview(false);
+                      if (selectedFicha) {
+                        handleDownloadOfficialDocx({
+                          ...selectedFicha,
+                          parecerOrientador: parecerText,
+                          nota: notaInput,
+                          status: statusInput
+                        });
+                      }
+                    }}
+                    className="px-3.5 py-2 bg-blue-900 hover:bg-blue-800 text-white text-xs font-bold rounded-xl transition-all shadow flex items-center justify-center space-x-1.5 cursor-pointer"
+                  >
+                    <FileText className="w-4 h-4 text-blue-300" />
+                    <span>Baixar DOCX</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSaveReview(true)}
+                    className="px-3.5 py-2 bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all shadow flex items-center justify-center space-x-1.5 cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Baixar PDF</span>
+                  </button>
+                </div>
             </div>
           </div>
         </div>
-      )}
+      </div>
+    )}
 
       {/* Email Dispatch Modal */}
       {emailModalFicha && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setEmailModalFicha(null);
+              setSelectedFicha(null);
+            }
+          }}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+        >
           <div className="bg-[#0b1325] border border-purple-500/40 rounded-2xl w-full max-w-xl shadow-2xl flex flex-col overflow-hidden animate-fade-in my-8">
             {/* Header */}
             <div className="p-4 sm:p-5 border-b border-slate-800 bg-gradient-to-r from-purple-950/90 via-slate-900 to-indigo-950/80 flex items-center justify-between">
@@ -1212,7 +1459,10 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
                 </div>
               </div>
               <button
-                onClick={() => setEmailModalFicha(null)}
+                onClick={() => {
+                  setEmailModalFicha(null);
+                  setSelectedFicha(null);
+                }}
                 className="p-1.5 text-slate-400 hover:text-white rounded-lg cursor-pointer hover:bg-slate-800 transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -1781,7 +2031,14 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
 
       {/* Delete Confirmation Modal */}
       {deleteModalFicha && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setDeleteModalFicha(null);
+            }
+          }}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+        >
           <div className="bg-[#0b1325] border border-rose-500/40 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4 animate-fade-in">
             <div className="flex items-center space-x-3 text-rose-400">
               <div className="p-2 bg-rose-950 border border-rose-800 rounded-xl">
@@ -1819,10 +2076,10 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
       )}
 
       {/* Container for capturing email PDF with exact grade, parecer, bibliografia & orientações */}
-      {activeEmailFicha && (
-        <div className="fixed top-0 left-0 w-[800px] bg-white text-black pointer-events-none z-[-50] overflow-hidden">
+      {(activeEmailFicha || fichaForEmailExport) && (
+        <div style={{ position: 'fixed', left: '-9999px', top: '0px', width: '900px', backgroundColor: '#ffffff', zIndex: -9999 }}>
           <div id="email-ficha-preview-container" className="p-4 bg-white text-black">
-            <FichaPreview ficha={activeEmailFicha} />
+            <FichaPreview ficha={fichaForEmailExport || activeEmailFicha!} />
           </div>
         </div>
       )}
