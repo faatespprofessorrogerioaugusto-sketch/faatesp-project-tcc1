@@ -25,6 +25,51 @@ export function isMarineuza(item?: { id?: string; usuarioEmail?: string; email?:
   return false;
 }
 
+export function normalizeStudentName(name?: string | null): string {
+  if (!name) return '';
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // remove accents
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+export function isFichaSubmetivel(ficha: Partial<FichaTCC> | null | undefined): { isValid: boolean; missingFields: string[] } {
+  if (!ficha) return { isValid: false, missingFields: ['Ficha não encontrada'] };
+  // Canonical student is always valid
+  if (isMarineuza(ficha)) return { isValid: true, missingFields: [] };
+
+  const missing: string[] = [];
+  const title = (ficha.tituloTrabalho || '').trim();
+  const problem = (ficha.situacaoProblema || '').trim();
+  const hypothesis = (ficha.hipotese || '').trim();
+  const biblio = (ficha.bibliografia || '').trim();
+  const studentName = (ficha.nomeAluno || '').trim();
+
+  if (!studentName || studentName.length < 5) {
+    missing.push('Nome completo do aluno(a)');
+  }
+  if (!title || title.length < 10) {
+    missing.push('Título do TCC (mínimo de 10 caracteres)');
+  }
+  if (!problem || problem.length < 20) {
+    missing.push('1) Situação-Problema (mínimo de 20 caracteres)');
+  }
+  if (!hypothesis || hypothesis.length < 15) {
+    missing.push('2) Hipótese (mínimo de 15 caracteres)');
+  }
+  if (!biblio || biblio.length < 15) {
+    missing.push('3) Referências Bibliográficas (mínimo de 15 caracteres)');
+  }
+
+  return {
+    isValid: missing.length === 0,
+    missingFields: missing
+  };
+}
+
 export function isFichaEmpty(ficha: Partial<FichaTCC> | null | undefined): boolean {
   if (!ficha) return true;
   if (isMarineuza(ficha)) return false;
@@ -311,6 +356,17 @@ export const storageService = {
       found = allFichas.find((f) => f.usuarioId === userId);
     }
 
+    // 2.5 Option 2: Match by Normalized Student Name (Merge secondary emails to existing official ficha)
+    if (!found && user.name && user.role === 'aluno') {
+      const normName = normalizeStudentName(user.name);
+      if (normName.length > 5) {
+        found = allFichas.find((f) => normalizeStudentName(f.nomeAluno) === normName);
+        if (found) {
+          found.usuarioEmail = user.email;
+        }
+      }
+    }
+
     // 3. Fallback for Orientador viewing their own default template
     if (!found && user.role === 'orientador') {
       found = allFichas[0];
@@ -353,7 +409,6 @@ export const storageService = {
 
     try {
       const fichas = this.getFichas();
-      const index = fichas.findIndex((f) => f.id === ficha.id);
       const institutionalLogo = this.getInstitutionalLogo();
 
       const updatedFicha: FichaTCC = {
@@ -362,6 +417,43 @@ export const storageService = {
         ultimaAtualizacao: new Date().toISOString()
       };
 
+      // Option 2: Name-based deduplication and merge
+      // If saving a ficha whose normalized student name matches an existing ficha with a different ID:
+      const normSaveName = normalizeStudentName(updatedFicha.nomeAluno);
+      const existingMatch = normSaveName.length > 5
+        ? fichas.find((f) => f.id !== updatedFicha.id && normalizeStudentName(f.nomeAluno) === normSaveName)
+        : null;
+
+      if (existingMatch) {
+        // Merge student's academic content into existing official ficha, preserving professor orientador data strictly!
+        const merged: FichaTCC = {
+          ...existingMatch,
+          tituloTrabalho: updatedFicha.tituloTrabalho || existingMatch.tituloTrabalho,
+          situacaoProblema: updatedFicha.situacaoProblema || existingMatch.situacaoProblema,
+          hipotese: updatedFicha.hipotese || existingMatch.hipotese,
+          bibliografia: updatedFicha.bibliografia || existingMatch.bibliografia,
+          semestre: updatedFicha.semestre || existingMatch.semestre,
+          curso: updatedFicha.curso || existingMatch.curso,
+          usuarioEmail: updatedFicha.usuarioEmail || existingMatch.usuarioEmail,
+          // Professor data strictly protected:
+          parecerOrientador: existingMatch.parecerOrientador || updatedFicha.parecerOrientador,
+          nota: existingMatch.nota || updatedFicha.nota,
+          status: existingMatch.status !== 'rascunho' ? existingMatch.status : updatedFicha.status,
+          orientacoes: existingMatch.orientacoes?.length ? existingMatch.orientacoes : updatedFicha.orientacoes,
+          ultimaAtualizacao: new Date().toISOString()
+        };
+        const matchIdx = fichas.findIndex((f) => f.id === existingMatch.id);
+        if (matchIdx >= 0) {
+          fichas[matchIdx] = merged;
+        }
+        const filteredFichas = fichas.filter((f) => f.id === existingMatch.id || f.id !== updatedFicha.id);
+        const sortedFichas = sortFichasDeterministically(filteredFichas);
+        localStorage.setItem(STORAGE_KEY_FICHAS, JSON.stringify(sortedFichas));
+        this.setActiveFichaId(existingMatch.id);
+        return;
+      }
+
+      const index = fichas.findIndex((f) => f.id === ficha.id);
       if (index >= 0) {
         fichas[index] = updatedFicha;
       } else {

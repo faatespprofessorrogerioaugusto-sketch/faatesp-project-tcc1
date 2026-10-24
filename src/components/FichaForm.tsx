@@ -22,7 +22,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { getSignatureForProfessor } from '../utils/signatures';
-import { storageService } from '../services/storage';
+import { storageService, isFichaSubmetivel } from '../services/storage';
 import { generatePdf } from '../utils/exportPdf';
 import { generateDocx } from '../utils/exportDocx';
 import {
@@ -402,8 +402,23 @@ export const FichaForm: React.FC<FichaFormProps> = ({
       }
     }
 
-    setIsSaving(true);
     const isStudent = currentUser.role === 'aluno';
+
+    // 3. Validação rigorosa: proíbe alunos de salvarem fichas incompletas
+    if (isStudent) {
+      const validation = isFichaSubmetivel({
+        ...formData,
+        nomeAluno: finalStudentName || formData.nomeAluno
+      });
+      if (!validation.isValid) {
+        setErrorMessage(
+          `Atenção: A ficha não pode ser registrada incompleta. Para enviar ao orientador, preencha: ${validation.missingFields.join(', ')}.`
+        );
+        return;
+      }
+    }
+
+    setIsSaving(true);
     const fichaToSave: FichaTCC = {
       ...formData,
       nomeAluno: finalStudentName || formData.nomeAluno,

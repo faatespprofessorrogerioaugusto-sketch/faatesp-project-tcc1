@@ -8,7 +8,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { FichaTCC, User, AccessLog } from '../types';
-import { storageService, sortFichasDeterministically, cleanForStorage, isMarineuza, isFichaEmpty } from './storage';
+import { storageService, sortFichasDeterministically, cleanForStorage, isMarineuza, isFichaEmpty, normalizeStudentName } from './storage';
 
 const FICHAS_COLLECTION = 'fichas';
 const CONFIG_COLLECTION = 'systemConfig';
@@ -176,15 +176,27 @@ export const cloudStorageService = {
       return;
     }
 
-    const fichaId = ficha.id || `ficha-${Date.now()}`;
+    // Option 2: Check if this student already has a canonical or existing ficha by student name
+    const normSaveName = normalizeStudentName(ficha.nomeAluno);
+    const existingMatch = normSaveName.length > 5
+      ? inMemoryFichasCache.find((f) => f.id !== ficha.id && normalizeStudentName(f.nomeAluno) === normSaveName)
+      : null;
+
+    const targetId = existingMatch ? existingMatch.id : (ficha.id || `ficha-${Date.now()}`);
     const dataToSave: FichaTCC = {
+      ...(existingMatch || ficha),
       ...ficha,
-      id: fichaId,
+      id: targetId,
+      // Protect orientador's evaluation:
+      parecerOrientador: existingMatch?.parecerOrientador || ficha.parecerOrientador,
+      nota: existingMatch?.nota || ficha.nota,
+      status: existingMatch?.status && existingMatch.status !== 'rascunho' ? existingMatch.status : ficha.status,
+      orientacoes: existingMatch?.orientacoes?.length ? existingMatch.orientacoes : ficha.orientacoes,
       ultimaAtualizacao: new Date().toISOString()
     };
 
     // Update in-memory cache immediately
-    const idx = inMemoryFichasCache.findIndex((f) => f.id === fichaId);
+    const idx = inMemoryFichasCache.findIndex((f) => f.id === targetId);
     if (idx >= 0) {
       inMemoryFichasCache[idx] = dataToSave;
     } else {
@@ -208,7 +220,7 @@ export const cloudStorageService = {
 
     // 3. Single Write to Firestore in background (with timeout protection so UI never blocks)
     try {
-      const fichaDocRef = doc(db, FICHAS_COLLECTION, fichaId);
+      const fichaDocRef = doc(db, FICHAS_COLLECTION, targetId);
       const sanitized = sanitizeForFirestore(cleanForStorage([dataToSave])[0]);
       await Promise.race([
         setDoc(fichaDocRef, sanitized, { merge: true }),
@@ -264,6 +276,17 @@ export const cloudStorageService = {
       // 2. Direct match by student user ID
       if (!found) {
         found = all.find((f) => f.usuarioId === userId);
+      }
+
+      // 2.5 Option 2: Match by Normalized Student Name (Merge secondary emails to existing official ficha)
+      if (!found && user.name && user.role === 'aluno') {
+        const normName = normalizeStudentName(user.name);
+        if (normName.length > 5) {
+          found = all.find((f) => normalizeStudentName(f.nomeAluno) === normName);
+          if (found) {
+            found.usuarioEmail = user.email;
+          }
+        }
       }
 
       // 3. If orientador, return the active or default template

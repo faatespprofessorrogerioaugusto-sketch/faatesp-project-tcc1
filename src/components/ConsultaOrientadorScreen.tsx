@@ -39,7 +39,7 @@ import { generateDocx } from '../utils/exportDocx';
 import { FichaPreview } from './FichaPreview';
 import { getSignatureForProfessor } from '../utils/signatures';
 import { getFichaExportFilename } from '../utils/filenameHelper';
-import { storageService, isMarineuza, isFichaEmpty } from '../services/storage';
+import { storageService, isMarineuza, isFichaEmpty, isFichaSubmetivel } from '../services/storage';
 
 interface EmailHistoryItem {
   id: string;
@@ -208,8 +208,14 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Exclude empty ghost fichas from orientador evaluation panel
-  const activeValidFichas = localFichas.filter(f => !isFichaEmpty(f));
+  // Only display valid fichas: either already evaluated by Orientador OR with minimum required academic content
+  const activeValidFichas = localFichas.filter(f => {
+    if (!f || isFichaEmpty(f)) return false;
+    // Always show if orientador has given a grade or parecer
+    if (f.parecerOrientador?.trim() || f.nota) return true;
+    // Otherwise only show if student filled minimum academic content
+    return isFichaSubmetivel(f).isValid;
+  });
 
   // Extract unique courses for filter
   const cursosDisponiveis = Array.from(new Set(activeValidFichas.map(f => f.curso).filter(Boolean)));
