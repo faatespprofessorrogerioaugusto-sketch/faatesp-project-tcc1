@@ -1396,7 +1396,11 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
                     type="button"
                     id="btn_salvar_parecer_aluno"
                     disabled={isSavingReview}
-                    onClick={() => handleSaveReview(false)}
+                    onClick={() => {
+                      setSelectedFicha(null);
+                      setEmailModalFicha(null);
+                      handleSaveReview(false);
+                    }}
                     className="px-4 py-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-60"
                     title="Salvar parecer e nota no banco de dados e retornar à lista de fichas"
                   >
@@ -1417,7 +1421,11 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
                     type="button"
                     id="btn_salvar_e_disparar_email"
                     disabled={isSavingReview}
-                    onClick={handleSaveAndSendEmail}
+                    onClick={() => {
+                      setSelectedFicha(null);
+                      setEmailModalFicha(null);
+                      handleSaveAndSendEmail();
+                    }}
                     className="px-4 py-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-extrabold rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-60"
                     title="Salvar parecer e disparar e-mail com PDF anexo para o aluno imediatamente"
                   >
@@ -2077,7 +2085,11 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
 
                 <button
                   type="button"
-                  onClick={handleSendEmailDirect}
+                  onClick={() => {
+                    setEmailModalFicha(null);
+                    setSelectedFicha(null);
+                    handleSendEmailDirect();
+                  }}
                   disabled={isSendingEmailPdf}
                   className="px-5 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-extrabold rounded-xl transition-all shadow-lg flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
                 >
