@@ -8,7 +8,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { FichaTCC, User, AccessLog } from '../types';
-import { storageService, sortFichasDeterministically, cleanForStorage, isMarineuza } from './storage';
+import { storageService, sortFichasDeterministically, cleanForStorage, isMarineuza, isFichaEmpty } from './storage';
 
 const FICHAS_COLLECTION = 'fichas';
 const CONFIG_COLLECTION = 'systemConfig';
@@ -104,14 +104,17 @@ export const cloudStorageService = {
           ficha.usuarioEmail = 'neuzasofia555@gmail.com';
         }
 
-        firestoreFichas.push(ficha);
+        // Only collect fichas with actual student content
+        if (!isFichaEmpty(ficha)) {
+          firestoreFichas.push(ficha);
+        }
       });
     } catch (err) {
       console.warn('Firestore Single Get notice (retrieving from persistent storage):', err);
     }
 
     const deletedIds = storageService.getDeletedFichaIds();
-    firestoreFichas = firestoreFichas.filter((f) => !deletedIds.includes(f.id));
+    firestoreFichas = firestoreFichas.filter((f) => !deletedIds.includes(f.id) && !isFichaEmpty(f));
 
     if (firestoreFichas.length > 0) {
       const sorted = sortFichasDeterministically(firestoreFichas);
@@ -168,6 +171,11 @@ export const cloudStorageService = {
    * Save or update ficha in server, Firestore and local
    */
   async saveFicha(ficha: FichaTCC): Promise<void> {
+    // CRITICAL: Block saving 100% empty ghost fichas to Firestore and database
+    if (isFichaEmpty(ficha)) {
+      return;
+    }
+
     const fichaId = ficha.id || `ficha-${Date.now()}`;
     const dataToSave: FichaTCC = {
       ...ficha,
@@ -263,7 +271,7 @@ export const cloudStorageService = {
         found = all[0];
       }
 
-      // 4. If still not found, create a brand-new persistent personal ficha for this student
+      // 4. If still not found, create an in-memory draft for this student (DO NOT auto-save empty ficha)
       if (!found) {
         found = storageService.createNewFicha(user);
         found.usuarioEmail = user.email;
@@ -271,7 +279,7 @@ export const cloudStorageService = {
         if (user.role === 'orientador' && user.name) {
           found.nomeAluno = user.name;
         }
-        await this.saveFicha(found);
+        // In-memory draft only: will ONLY be saved if student fills fields and clicks Salvar!
       }
 
       storageService.setActiveFichaId(found.id);

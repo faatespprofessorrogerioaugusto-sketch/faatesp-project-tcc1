@@ -39,7 +39,7 @@ import { generateDocx } from '../utils/exportDocx';
 import { FichaPreview } from './FichaPreview';
 import { getSignatureForProfessor } from '../utils/signatures';
 import { getFichaExportFilename } from '../utils/filenameHelper';
-import { storageService, isMarineuza } from '../services/storage';
+import { storageService, isMarineuza, isFichaEmpty } from '../services/storage';
 
 interface EmailHistoryItem {
   id: string;
@@ -208,11 +208,14 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Extract unique courses for filter
-  const cursosDisponiveis = Array.from(new Set(localFichas.map(f => f.curso).filter(Boolean)));
+  // Exclude empty ghost fichas from orientador evaluation panel
+  const activeValidFichas = localFichas.filter(f => !isFichaEmpty(f));
 
-  // Filter fichas
-  const filteredFichas = localFichas.filter(f => {
+  // Extract unique courses for filter
+  const cursosDisponiveis = Array.from(new Set(activeValidFichas.map(f => f.curso).filter(Boolean)));
+
+  // Filter fichas with real content
+  const filteredFichas = activeValidFichas.filter(f => {
     const matchSearch = 
       (f.nomeAluno || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (f.tituloTrabalho || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -224,10 +227,10 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
     return matchSearch && matchStatus && matchCurso;
   });
 
-  // Calculate statistics
-  const totalFichas = localFichas.length;
-  const pendentesParecer = localFichas.filter(f => !f.parecerOrientador).length;
-  const aprovadas = localFichas.filter(f => f.status === 'aprovado' || f.status === 'concluido').length;
+  // Calculate statistics only for real fichas with content
+  const totalFichas = activeValidFichas.length;
+  const pendentesParecer = activeValidFichas.filter(f => !f.parecerOrientador).length;
+  const aprovadas = activeValidFichas.filter(f => f.status === 'aprovado' || f.status === 'concluido').length;
 
   const handleManualRefresh = async () => {
     if (!onRefreshFichas || isRefreshing) return;

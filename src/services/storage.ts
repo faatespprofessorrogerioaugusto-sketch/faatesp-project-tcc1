@@ -25,6 +25,22 @@ export function isMarineuza(item?: { id?: string; usuarioEmail?: string; email?:
   return false;
 }
 
+export function isFichaEmpty(ficha: Partial<FichaTCC> | null | undefined): boolean {
+  if (!ficha) return true;
+  if (isMarineuza(ficha)) return false;
+
+  const hasTitle = Boolean(ficha.tituloTrabalho?.trim());
+  const hasProblem = Boolean(ficha.situacaoProblema?.trim());
+  const hasHypothesis = Boolean(ficha.hipotese?.trim());
+  const hasBiblio = Boolean(ficha.bibliografia?.trim());
+  const hasOrientacoes = Boolean(ficha.orientacoes && ficha.orientacoes.some((o) => o.observacao?.trim() || o.confirmado));
+  const hasParecer = Boolean(ficha.parecerOrientador?.trim());
+  const hasNota = Boolean(ficha.nota !== undefined && ficha.nota !== null && String(ficha.nota).trim() !== '');
+
+  // If none of these fields have any content, it is an empty draft/ghost ficha
+  return !hasTitle && !hasProblem && !hasHypothesis && !hasBiblio && !hasOrientacoes && !hasParecer && !hasNota;
+}
+
 export function sortFichasDeterministically(fichas: FichaTCC[]): FichaTCC[] {
   return [...fichas].sort((a, b) => {
     // Marineuza Lina de Souza always has top priority
@@ -245,8 +261,8 @@ export const storageService = {
         }
       }
 
-      // Filter out permanently deleted fichas
-      currentFichas = currentFichas.filter((f) => !deletedIds.includes(f.id));
+      // Filter out permanently deleted fichas and blank ghost fichas
+      currentFichas = currentFichas.filter((f) => !deletedIds.includes(f.id) && !isFichaEmpty(f));
 
       // Always sort deterministically to prevent fichas from shuffling or being out of order
       currentFichas = sortFichasDeterministically(currentFichas);
@@ -300,7 +316,7 @@ export const storageService = {
       found = allFichas[0];
     }
 
-    // 4. If none exists, create and bind a brand new persistent ficha for this student
+    // 4. If none exists, create an in-memory draft (DO NOT save blank ficha to storage/database)
     if (!found) {
       found = this.createNewFicha(user);
       found.usuarioEmail = user.email;
@@ -308,7 +324,7 @@ export const storageService = {
       if (user.role === 'orientador' && user.name) {
         found.nomeAluno = user.name;
       }
-      this.saveFicha(found);
+      // In-memory draft only: will ONLY be saved if student fills fields and clicks Salvar!
     } else {
       // Ensure user credentials and institutional logo are linked
       let needsUpdate = false;
@@ -320,7 +336,7 @@ export const storageService = {
         found.usuarioId = user.id;
         needsUpdate = true;
       }
-      if (needsUpdate) {
+      if (needsUpdate && !isFichaEmpty(found)) {
         this.saveFicha(found);
       }
     }
@@ -330,6 +346,11 @@ export const storageService = {
   },
 
   saveFicha(ficha: FichaTCC): void {
+    // CRITICAL: Block saving 100% empty ghost fichas
+    if (isFichaEmpty(ficha)) {
+      return;
+    }
+
     try {
       const fichas = this.getFichas();
       const index = fichas.findIndex((f) => f.id === ficha.id);

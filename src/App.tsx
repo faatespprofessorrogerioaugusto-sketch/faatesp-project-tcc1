@@ -121,8 +121,7 @@ export default function App() {
   const handleCreateNew = async () => {
     if (!user) return;
     const newFicha = storageService.createNewFicha(user);
-    await cloudStorageService.saveFicha(newFicha);
-    await loadFichasData(user);
+    // Draft is kept in-memory; it will only be saved when user fills content and clicks Salvar
     setActiveFicha(newFicha);
     storageService.setActiveFichaId(newFicha.id);
     setActiveScreen('editar');
