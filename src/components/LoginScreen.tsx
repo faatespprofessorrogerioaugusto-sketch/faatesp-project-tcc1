@@ -16,8 +16,8 @@ interface LoginScreenProps {
 
 // Allowed emails for Professor Orientador (Docente)
 const ALLOWED_ORIENTADOR_EMAILS = [
-  'rogerioaugusto@gmail.com',
   'faatesp.professor.rogerioaugusto@gmail.com',
+  'rogerioaugusto@gmail.com',
   'marines.borba1@gmail.com'
 ];
 
@@ -33,7 +33,7 @@ function isOrientadorAuthorized(email: string): boolean {
     return false;
   }
   if (ALLOWED_ORIENTADOR_EMAILS.includes(norm)) return true;
-  if (norm.startsWith('rogerioaugusto')) {
+  if (norm.includes('rogerioaugusto')) {
     return true;
   }
   return false;
@@ -42,9 +42,9 @@ function isOrientadorAuthorized(email: string): boolean {
 function getPredefinedNameForEmail(email: string, role: UserRole): string {
   const norm = normalizeEmail(email);
   if (
-    norm === 'rogerioaugusto@gmail.com' ||
     norm === 'faatesp.professor.rogerioaugusto@gmail.com' ||
-    norm.startsWith('rogerioaugusto')
+    norm === 'rogerioaugusto@gmail.com' ||
+    norm.includes('rogerioaugusto')
   ) {
     return role === 'orientador' ? 'Prof. Rogério Augusto' : 'Rogério Augusto';
   }

@@ -131,14 +131,33 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
     isRealSmtp?: boolean;
   } | null>(null);
 
-  // Custom SMTP settings state (loaded from persistent storage)
+  // Custom SMTP & Resend settings state (loaded from persistent storage)
   const [useCustomSmtp, setUseCustomSmtp] = useState<boolean>(() => storageService.getSmtpConfig().enabled);
   const [smtpHost, setSmtpHost] = useState<string>(() => storageService.getSmtpConfig().host);
   const [smtpPort, setSmtpPort] = useState<string>(() => storageService.getSmtpConfig().port || '587');
   const [smtpUser, setSmtpUser] = useState<string>(() => storageService.getSmtpConfig().user);
   const [smtpPass, setSmtpPass] = useState<string>(() => storageService.getSmtpConfig().pass);
   const [smtpFrom, setSmtpFrom] = useState<string>(() => storageService.getSmtpConfig().from || 'FAATESP TCC <orientacao@faatesp.edu.br>');
+  const [resendApiKey, setResendApiKey] = useState<string>(() => storageService.getSmtpConfig().resendApiKey || '');
   const [smtpSaveSuccess, setSmtpSaveSuccess] = useState<boolean>(false);
+
+  // Dedicated Post-Save Notification Dialog state
+  const [postSaveNotification, setPostSaveNotification] = useState<{
+    ficha: FichaTCC;
+    studentName: string;
+    studentEmail: string;
+    isApproved: boolean;
+    nota: string;
+    parecerText: string;
+    subject: string;
+    body: string;
+    gmailComposeUrl: string;
+    outlookComposeUrl: string;
+    mailtoUrl: string;
+    autoSent?: boolean;
+    autoSentMessage?: string;
+  } | null>(null);
+  const [copiedNotification, setCopiedNotification] = useState<boolean>(false);
 
   // Email history state
   const [emailHistory, setEmailHistory] = useState<EmailHistoryItem[]>([]);
@@ -200,7 +219,8 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
       port: smtpPort.trim() || '587',
       user: smtpUser.trim(),
       pass: smtpPass.trim(),
-      from: smtpFrom.trim()
+      from: smtpFrom.trim(),
+      resendApiKey: resendApiKey.trim()
     });
     setSmtpSaveSuccess(true);
     setTimeout(() => setSmtpSaveSuccess(false), 3500);
@@ -210,8 +230,94 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
     setUseCustomSmtp(true);
     setSmtpHost('smtp.gmail.com');
     setSmtpPort('465');
-    if (!smtpUser) setSmtpUser(currentUser.email || 'rogerioaugusto@gmail.com');
-    if (!smtpFrom) setSmtpFrom(`Prof. ${currentUser.name || 'Rogério Augusto'} <${currentUser.email || 'rogerioaugusto@gmail.com'}>`);
+    if (!smtpUser) setSmtpUser(currentUser.email || 'faatesp.professor.rogerioaugusto@gmail.com');
+    if (!smtpFrom) setSmtpFrom(`Prof. ${currentUser.name || 'Rogério Augusto'} <${currentUser.email || 'faatesp.professor.rogerioaugusto@gmail.com'}>`);
+  };
+
+  const buildNotificationData = (
+    ficha: FichaTCC,
+    studentEmail: string,
+    studentName: string,
+    isApproved: boolean,
+    nota: string,
+    parecer: string,
+    profName: string,
+    workTitle: string,
+    autoSent?: boolean,
+    autoSentMessage?: string
+  ) => {
+    const cleanStudentEmail = (studentEmail || '').trim();
+    const subject = isApproved
+      ? `[FAATESP TCC] 🎉 Parabéns! Sua Ficha de TCC foi APROVADA - Nota: ${nota || '10'}`
+      : `[FAATESP TCC] ⚠️ Parecer do Orientador: Ajustes Necessários no TCC`;
+
+    const body =
+      `Olá ${studentName || 'Aluno(a)'},\n\n` +
+      `Sua Ficha de Orientação de TCC foi analisada pelo seu professor orientador:\n\n` +
+      `--------------------------------------------------\n` +
+      `TÍTULO DO TRABALHO: ${workTitle || 'TCC'}\n` +
+      `STATUS: ${isApproved ? 'APROVADO' : 'NECESSITA AJUSTES / RESTRIÇÕES'}\n` +
+      `NOTA ATRIBUÍDA: ${nota || 'Pendente'}\n` +
+      `ORIENTADOR: ${profName || 'Prof. Orientador'}\n` +
+      `--------------------------------------------------\n\n` +
+      `PARECER DO PROFESSOR ORIENTADOR:\n` +
+      `"${parecer || 'Parecer de acompanhamento registrado no sistema FAATESP.'}"\n\n` +
+      `Acesse a plataforma da FAATESP para visualizar sua ficha atualizada e dar prosseguimento ao seu trabalho.\n\n` +
+      `Atenciosamente,\n` +
+      `${profName || 'Prof. Orientador'}\n` +
+      `Faculdade Álvares de Azevedo - FAATESP`;
+
+    const gmailComposeUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(cleanStudentEmail)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const outlookComposeUrl = `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(cleanStudentEmail)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const mailtoUrl = `mailto:${encodeURIComponent(cleanStudentEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+    return {
+      ficha,
+      studentName: studentName || 'Aluno(a)',
+      studentEmail: cleanStudentEmail,
+      isApproved,
+      nota: nota || '',
+      parecerText: parecer || '',
+      subject,
+      body,
+      gmailComposeUrl,
+      outlookComposeUrl,
+      mailtoUrl,
+      autoSent,
+      autoSentMessage
+    };
+  };
+
+  const handleUpdateNotificationEmail = (newEmail: string) => {
+    if (!postSaveNotification) return;
+    const updated = buildNotificationData(
+      postSaveNotification.ficha,
+      newEmail,
+      postSaveNotification.studentName,
+      postSaveNotification.isApproved,
+      postSaveNotification.nota,
+      postSaveNotification.parecerText,
+      currentUser.name || postSaveNotification.ficha.professorOrientador || 'Prof. Orientador',
+      postSaveNotification.ficha.tituloTrabalho || 'TCC',
+      postSaveNotification.autoSent,
+      postSaveNotification.autoSentMessage
+    );
+    setPostSaveNotification(updated);
+  };
+
+  const handleCopyNotificationText = () => {
+    if (!postSaveNotification) return;
+    const textToCopy = `*FAATESP - NOTIFICAÇÃO DE ORIENTAÇÃO DE TCC*\n\n` +
+      `*Aluno(a):* ${postSaveNotification.studentName}\n` +
+      `*Situação:* ${postSaveNotification.isApproved ? 'APROVADO' : 'NECESSITA AJUSTES'}\n` +
+      `*Nota Atribuída:* ${postSaveNotification.nota || 'Pendente'}\n` +
+      `*Orientador:* ${currentUser.name || 'Prof. Orientador'}\n\n` +
+      `*PARECER DO ORIENTADOR:*\n"${postSaveNotification.parecerText}"\n\n` +
+      `Faculdade Álvares de Azevedo - FAATESP`;
+
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedNotification(true);
+    setTimeout(() => setCopiedNotification(false), 3000);
   };
 
   useEffect(() => {
@@ -301,7 +407,7 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
     setEmailSentSuccess(false);
 
     // Default recipient to student's email (or orientador if empty)
-    const targetStudentEmail = ficha.usuarioEmail || currentUser.email || 'rogerioaugusto@gmail.com';
+    const targetStudentEmail = ficha.usuarioEmail || currentUser.email || 'faatesp.professor.rogerioaugusto@gmail.com';
     setDestinatarioEmail(targetStudentEmail);
     setEmailSubject('FICHA DE ORIENTAÇÃO - FAATESP');
     const studentName = ficha.nomeAluno || 'Aluno';
@@ -329,7 +435,7 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
   const handleSendEmailDirect = async () => {
     if (!emailModalFicha) return;
 
-    const targetEmail = (destinatarioEmail || emailModalFicha.usuarioEmail || currentUser.email || 'rogerioaugusto@gmail.com').trim();
+    const targetEmail = (destinatarioEmail || emailModalFicha.usuarioEmail || currentUser.email || 'faatesp.professor.rogerioaugusto@gmail.com').trim();
     const fixedSubject = emailSubject || 'FICHA DE ORIENTAÇÃO - FAATESP';
 
     // Get latest active ficha from state
@@ -651,16 +757,29 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
     // 2. Ensure immediate local storage update
     storageService.saveFicha(updatedFicha);
 
-    // 3. CRITICAL: Immediately close modals synchronously so user is returned to cards list with ZERO delay
+    // 3. Close review modal and open post-save notification dialog
     setSelectedFicha(null);
     setEmailModalFicha(null);
     setIsSavingReview(false);
+
+    const isApproved = statusInput === 'aprovado';
+    const notifData = buildNotificationData(
+      updatedFicha,
+      resolvedStudentEmail,
+      updatedFicha.nomeAluno,
+      isApproved,
+      notaInput,
+      parecerText,
+      currentUser.name || updatedFicha.professorOrientador || 'Prof. Orientador',
+      updatedFicha.tituloTrabalho || 'Trabalho de Conclusão de Curso'
+    );
+    setPostSaveNotification(notifData);
 
     // 4. Show prominent success feedback toast on cards list
     setToastNotification({
       type: 'success',
       title: '✓ Parecer Salvo com Sucesso!',
-      message: `✓ Parecer e nota de ${updatedFicha.nomeAluno} salvos no banco de dados. Ficha atualizada e pronta na lista!`
+      message: `✓ Parecer e nota de ${updatedFicha.nomeAluno} salvos no banco de dados.`
     });
 
     // 5. Background cloud sync
@@ -702,34 +821,33 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
     // 2. Immediate local persistence
     storageService.saveFicha(updatedFicha);
 
-    // 3. CRITICAL: Immediately close modals synchronously so user returns to cards list with ZERO delay
+    // 3. Immediately close review modal and open post-save notification dialog
     setSelectedFicha(null);
     setEmailModalFicha(null);
     setIsSavingReview(false);
 
-    // 4. Immediate toast feedback on cards list
-    if (resolvedStudentEmail && resolvedStudentEmail.includes('@')) {
-      setToastNotification({
-        type: 'info',
-        title: '✓ Parecer Salvo! Disparando E-mail...',
-        message: `Parecer de ${updatedFicha.nomeAluno} salvo! Disparando e-mail com PDF anexo para ${resolvedStudentEmail}...`
-      });
-    } else {
-      setToastNotification({
-        type: 'success',
-        title: '✓ Parecer Salvo com Sucesso!',
-        message: `Parecer de ${updatedFicha.nomeAluno} salvo no banco de dados. Aluno não possui e-mail cadastrado.`
-      });
-    }
+    const isApproved = statusInput === 'aprovado';
+    const notifData = buildNotificationData(
+      updatedFicha,
+      resolvedStudentEmail,
+      updatedFicha.nomeAluno,
+      isApproved,
+      notaInput,
+      parecerText,
+      currentUser.name || updatedFicha.professorOrientador || 'Prof. Orientador',
+      updatedFicha.tituloTrabalho || 'Trabalho de Conclusão de Curso',
+      Boolean(resolvedStudentEmail && resolvedStudentEmail.includes('@'))
+    );
+    setPostSaveNotification(notifData);
 
-    // 5. Background cloud sync
+    // 4. Background cloud sync
     try {
       onSaveFicha(updatedFicha);
     } catch (err) {
       console.error('Erro ao sincronizar parecer do orientador:', err);
     }
 
-    // 6. Background email dispatch
+    // 5. Background email dispatch
     if (resolvedStudentEmail && resolvedStudentEmail.includes('@')) {
       triggerAutomaticEmailNotification(updatedFicha, resolvedStudentEmail);
     }
@@ -1795,7 +1913,7 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
                     <div className="p-3 bg-[#080d1a] border border-slate-800 rounded-xl text-xs flex flex-col justify-center">
                       <span className="text-slate-400 text-[11px]">Remetente Registrado:</span>
                       <span className="font-bold text-purple-300 truncate text-xs mt-0.5">
-                        {currentUser.email || 'rogerioaugusto@gmail.com'}
+                        {currentUser.email || 'faatesp.professor.rogerioaugusto@gmail.com'}
                       </span>
                     </div>
 
@@ -2028,6 +2146,27 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
                         />
                       </div>
 
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-300 mb-1 flex items-center justify-between">
+                          <span>Chave de API Resend (Alternativa 100% Serverless para Vercel):</span>
+                          <span className="text-[10px] text-purple-300 bg-purple-950 px-1.5 py-0.5 rounded border border-purple-800">
+                            HTTPS 443 / Nuvem
+                          </span>
+                        </label>
+                        <input
+                          type="password"
+                          id="field_resend_api_key"
+                          autoComplete="off"
+                          value={resendApiKey}
+                          onChange={(e) => setResendApiKey(e.target.value)}
+                          placeholder="re_123456789..."
+                          className="w-full bg-[#0d1629] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                        />
+                        <span className="text-[10px] text-slate-400 mt-0.5 block">
+                          Gratuito no resend.com (3.000 e-mails/mês). Roda diretamente no Vercel sem bloqueio de portas SMTP.
+                        </span>
+                      </div>
+
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-2 border-t border-slate-800">
                         <button
                           type="button"
@@ -2218,6 +2357,172 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Post-Save Notification Delivery Modal (Unblockable Links, 100% Guaranteed Delivery) */}
+      {postSaveNotification && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setPostSaveNotification(null);
+            }
+          }}
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
+        >
+          <div className="bg-[#0b1325] border-2 border-emerald-500/80 rounded-2xl w-full max-w-lg shadow-2xl p-5 sm:p-6 space-y-4 animate-fade-in my-auto">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-3 border-b border-slate-800 pb-3">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 bg-emerald-950 border border-emerald-600 rounded-xl text-emerald-400 shrink-0">
+                  <CheckCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">
+                    Parecer Salvo no Banco de Dados!
+                  </h3>
+                  <p className="text-xs text-slate-300">
+                    Agora, notifique o aluno <strong className="text-white">{postSaveNotification.studentName}</strong>:
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPostSaveNotification(null)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Fechar notificação"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Recipient & Status Overview */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              <div className="p-3 bg-[#080d1a] border border-slate-800 rounded-xl">
+                <span className="text-[11px] text-slate-400 block mb-0.5">Situação Avaliada:</span>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-black ${
+                  postSaveNotification.isApproved
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                }`}>
+                  {postSaveNotification.isApproved ? '🟢 APROVADO' : '🟠 NECESSITA AJUSTES'}
+                  {postSaveNotification.nota ? ` • Nota: ${postSaveNotification.nota}` : ''}
+                </span>
+              </div>
+
+              <div className="p-3 bg-[#080d1a] border border-slate-800 rounded-xl">
+                <label className="text-[11px] text-slate-400 block mb-0.5 font-semibold">
+                  E-mail do Aluno (Destinatário):
+                </label>
+                <input
+                  type="email"
+                  value={postSaveNotification.studentEmail}
+                  onChange={(e) => handleUpdateNotificationEmail(e.target.value)}
+                  placeholder="aluno@email.com"
+                  className="w-full bg-[#0d1629] border border-slate-700 rounded-lg px-2 py-1 text-xs text-emerald-300 font-bold focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            </div>
+
+            {/* Parecer Preview Box */}
+            <div className="p-3 bg-amber-950/20 border border-amber-800/40 rounded-xl space-y-1">
+              <span className="text-[10px] uppercase font-bold text-amber-400 tracking-wider">
+                Parecer Registrado do Orientador:
+              </span>
+              <p className="text-xs text-slate-200 italic line-clamp-3 leading-relaxed">
+                "{postSaveNotification.parecerText || 'Parecer de acompanhamento registrado no sistema.'}"
+              </p>
+            </div>
+
+            {/* Delivery Methods Section */}
+            <div className="space-y-2 pt-1">
+              <span className="text-xs font-black text-slate-200 flex items-center space-x-1.5">
+                <Mail className="w-4 h-4 text-purple-400" />
+                <span>Escolha como entregar a notificação ao aluno:</span>
+              </span>
+
+              {/* PRIMARY OPTION: Gmail Web (1-Click, Unblockable Link, 100% Guaranteed) */}
+              <a
+                href={postSaveNotification.gmailComposeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full p-3.5 bg-gradient-to-r from-rose-600 via-rose-700 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-xl shadow-xl flex items-center justify-between transition-all hover:scale-[1.01] active:scale-95 border border-rose-400/50 group text-left cursor-pointer no-underline"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-white/20 rounded-lg text-white">
+                    <Mail className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-white flex items-center gap-1.5">
+                      <span>✉️ Abrir e Enviar pelo Gmail Web</span>
+                      <span className="px-1.5 py-0.5 bg-white/30 text-white text-[9px] rounded font-extrabold uppercase">
+                        100% Garantido
+                      </span>
+                    </p>
+                    <p className="text-[11px] text-rose-100 opacity-90 mt-0.5">
+                      Abre o seu Gmail com destinatário ({postSaveNotification.studentEmail || 'aluno'}), nota e parecer já preenchidos.
+                    </p>
+                  </div>
+                </div>
+                <ExternalLink className="w-4 h-4 text-white shrink-0 group-hover:translate-x-0.5 transition-transform" />
+              </a>
+
+              {/* SECONDARY OPTIONS: Outlook, Mailto, Copy Text */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                <a
+                  href={postSaveNotification.outlookComposeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-2 bg-blue-950/80 hover:bg-blue-900 border border-blue-700/80 text-blue-200 text-xs font-bold rounded-xl transition-all flex items-center justify-center space-x-1.5 cursor-pointer no-underline text-center"
+                >
+                  <Mail className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Abrir no Outlook</span>
+                </a>
+
+                <a
+                  href={postSaveNotification.mailtoUrl}
+                  className="px-3 py-2 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl transition-all flex items-center justify-center space-x-1.5 cursor-pointer no-underline text-center"
+                >
+                  <Mail className="w-3.5 h-3.5 text-slate-400" />
+                  <span>App de E-mail</span>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={handleCopyNotificationText}
+                  className={`px-3 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center space-x-1.5 cursor-pointer border ${
+                    copiedNotification
+                      ? 'bg-emerald-950 border-emerald-500 text-emerald-300'
+                      : 'bg-indigo-950/80 hover:bg-indigo-900 border-indigo-700/80 text-indigo-200'
+                  }`}
+                >
+                  {copiedNotification ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>✓ Copiado!</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Copiar Parecer</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Footer Modal Actions */}
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setPostSaveNotification(null)}
+                className="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow flex items-center justify-center space-x-1.5"
+              >
+                <CheckCircle className="w-4 h-4" />
+                <span>Concluir e Voltar às Fichas</span>
+              </button>
             </div>
           </div>
         </div>

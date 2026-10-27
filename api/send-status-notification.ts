@@ -86,12 +86,57 @@ export default async function handler(req: any, res: any) {
 
   const plainText = `FAATESP - Sistema de TCC\n\nOlá ${studentName || 'Aluno'},\n\nSua Ficha de Orientação de TCC foi atualizada pelo professor orientador:\n\nSituação: ${statusBadge}\nNota: ${nota || 'Pendente'}\nTítulo: ${workTitle || ''}\nOrientador: ${professorOrientador || ''}\n\nParecer:\n"${parecerOrientador || ''}"\n\nAcesse a plataforma: ${appUrl || ''}`;
 
-  // Check if SMTP is configured
+  const resendApiKey = customSmtp?.resendApiKey || process.env.RESEND_API_KEY;
+  const smtpFrom = customSmtp?.from || process.env.SMTP_FROM || 'FAATESP TCC <orientacao@faatesp.edu.br>';
+
+  // 1. Try Resend REST API (ideal for Vercel Serverless, port 443 HTTPS)
+  if (resendApiKey) {
+    try {
+      const attachments: any[] = [];
+      if (pdfBase64) {
+        attachments.push({
+          filename: pdfFilename || 'Ficha_TCC_Oficial.pdf',
+          content: pdfBase64.replace(/^data:application\/pdf;base64,/, '')
+        });
+      }
+
+      const resendResponse = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: smtpFrom.includes('@') ? smtpFrom : 'FAATESP TCC <onboarding@resend.dev>',
+          to: [targetEmail],
+          subject,
+          text: plainText,
+          html: htmlBody,
+          attachments
+        })
+      });
+
+      const resendData = await resendResponse.json();
+      if (resendResponse.ok) {
+        return res.status(200).json({
+          success: true,
+          sent: true,
+          provider: 'resend',
+          message: `✉️ E-mail oficial entregue com sucesso para ${targetEmail} via Resend API!`
+        });
+      } else {
+        console.warn('Erro na resposta Resend:', resendData);
+      }
+    } catch (resendErr: any) {
+      console.warn('Falha na chamada Resend API:', resendErr);
+    }
+  }
+
+  // 2. Check if SMTP is configured
   const smtpHost = customSmtp?.host || process.env.SMTP_HOST;
   const smtpPort = Number(customSmtp?.port || process.env.SMTP_PORT || 587);
   const smtpUser = customSmtp?.user || process.env.SMTP_USER;
   const smtpPass = customSmtp?.pass || process.env.SMTP_PASS;
-  const smtpFrom = customSmtp?.from || process.env.SMTP_FROM || 'FAATESP TCC <orientacao@faatesp.edu.br>';
 
   if (smtpHost && smtpUser && smtpPass) {
     try {

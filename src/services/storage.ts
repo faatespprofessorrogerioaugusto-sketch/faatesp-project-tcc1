@@ -19,6 +19,7 @@ export interface SmtpConfig {
   pass: string;
   from: string;
   enabled: boolean;
+  resendApiKey?: string;
 }
 
 export function isMarineuza(item?: { id?: string; usuarioEmail?: string; email?: string; nomeAluno?: string; name?: string } | null): boolean {

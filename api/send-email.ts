@@ -27,11 +27,56 @@ export default async function handler(req: any, res: any) {
     });
   }
 
+  const resendApiKey = customSmtp?.resendApiKey || process.env.RESEND_API_KEY;
+  const smtpFrom = customSmtp?.from || process.env.SMTP_FROM || 'FAATESP TCC <orientacao@faatesp.edu.br>';
+
+  // 1. Try Resend REST API (ideal for Vercel Serverless, port 443 HTTPS)
+  if (resendApiKey) {
+    try {
+      const attachments: any[] = [];
+      if (pdfBase64) {
+        attachments.push({
+          filename: pdfFilename || 'Ficha_TCC_Oficial.pdf',
+          content: pdfBase64.replace(/^data:application\/pdf;base64,/, '')
+        });
+      }
+
+      const resendResponse = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: smtpFrom.includes('@') ? smtpFrom : 'FAATESP TCC <onboarding@resend.dev>',
+          to: [targetEmail],
+          subject: subject || 'FICHA DE ORIENTAÇÃO - FAATESP',
+          text: body || `Olá ${studentName || 'Aluno'}, sua ficha de TCC corrigida foi anexada.`,
+          attachments
+        })
+      });
+
+      const resendData = await resendResponse.json();
+      if (resendResponse.ok) {
+        return res.status(200).json({
+          success: true,
+          sent: true,
+          provider: 'resend',
+          message: `✉️ E-mail oficial com PDF entregue com sucesso via Resend API para ${targetEmail}!`
+        });
+      } else {
+        console.warn('Erro Resend:', resendData);
+      }
+    } catch (resendErr: any) {
+      console.warn('Falha Resend:', resendErr);
+    }
+  }
+
+  // 2. Check if SMTP is configured
   const smtpHost = customSmtp?.host || process.env.SMTP_HOST;
   const smtpPort = Number(customSmtp?.port || process.env.SMTP_PORT || 587);
   const smtpUser = customSmtp?.user || process.env.SMTP_USER;
   const smtpPass = customSmtp?.pass || process.env.SMTP_PASS;
-  const smtpFrom = customSmtp?.from || process.env.SMTP_FROM || 'FAATESP TCC <orientacao@faatesp.edu.br>';
 
   if (smtpHost && smtpUser && smtpPass) {
     try {
