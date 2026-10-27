@@ -593,20 +593,22 @@ ${downloadUrl ? `\nLINK PARA BAIXAR PDF: ${downloadUrl}\n` : ''}
     emailOutboxHistory.unshift(record);
 
     return res.json({
-      success: true,
+      success: isRealSmtp,
+      sent: isRealSmtp,
       messageId,
       isRealSmtp,
       testMessageUrl: false,
       message: isRealSmtp
-        ? `Notificação automática enviada com sucesso para ${to}!`
-        : `Notificação gravada e enviada com sucesso para ${to}!`,
+        ? `✉️ Notificação enviada com sucesso para ${to}!`
+        : `Parecer salvo no banco! Para entrega automática direta por e-mail, configure o servidor SMTP (como Gmail com senha de app) ou utilize o envio via Gmail.`,
       record
     });
   } catch (error: any) {
     console.error('Erro no disparo automático de status:', error);
     return res.json({
-      success: true,
-      message: `Notificação de status registrada com sucesso para ${to}.`,
+      success: false,
+      sent: false,
+      message: `Erro ao enviar e-mail: ${error?.message || 'Falha no servidor de e-mail.'}`,
       recordId
     });
   }

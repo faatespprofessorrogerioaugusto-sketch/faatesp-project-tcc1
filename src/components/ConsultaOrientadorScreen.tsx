@@ -131,13 +131,14 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
     isRealSmtp?: boolean;
   } | null>(null);
 
-  // Custom SMTP settings state
-  const [useCustomSmtp, setUseCustomSmtp] = useState<boolean>(false);
-  const [smtpHost, setSmtpHost] = useState<string>('');
-  const [smtpPort, setSmtpPort] = useState<string>('587');
-  const [smtpUser, setSmtpUser] = useState<string>('');
-  const [smtpPass, setSmtpPass] = useState<string>('');
-  const [smtpFrom, setSmtpFrom] = useState<string>('FAATESP TCC <orientacao@faatesp.edu.br>');
+  // Custom SMTP settings state (loaded from persistent storage)
+  const [useCustomSmtp, setUseCustomSmtp] = useState<boolean>(() => storageService.getSmtpConfig().enabled);
+  const [smtpHost, setSmtpHost] = useState<string>(() => storageService.getSmtpConfig().host);
+  const [smtpPort, setSmtpPort] = useState<string>(() => storageService.getSmtpConfig().port || '587');
+  const [smtpUser, setSmtpUser] = useState<string>(() => storageService.getSmtpConfig().user);
+  const [smtpPass, setSmtpPass] = useState<string>(() => storageService.getSmtpConfig().pass);
+  const [smtpFrom, setSmtpFrom] = useState<string>(() => storageService.getSmtpConfig().from || 'FAATESP TCC <orientacao@faatesp.edu.br>');
+  const [smtpSaveSuccess, setSmtpSaveSuccess] = useState<boolean>(false);
 
   // Email history state
   const [emailHistory, setEmailHistory] = useState<EmailHistoryItem[]>([]);
@@ -190,6 +191,27 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
     } finally {
       setIsLoadingHistory(false);
     }
+  };
+
+  const handleSaveSmtpConfig = () => {
+    storageService.saveSmtpConfig({
+      enabled: useCustomSmtp,
+      host: smtpHost.trim(),
+      port: smtpPort.trim() || '587',
+      user: smtpUser.trim(),
+      pass: smtpPass.trim(),
+      from: smtpFrom.trim()
+    });
+    setSmtpSaveSuccess(true);
+    setTimeout(() => setSmtpSaveSuccess(false), 3500);
+  };
+
+  const handleQuickFillGmail = () => {
+    setUseCustomSmtp(true);
+    setSmtpHost('smtp.gmail.com');
+    setSmtpPort('465');
+    if (!smtpUser) setSmtpUser(currentUser.email || 'rogerioaugusto@gmail.com');
+    if (!smtpFrom) setSmtpFrom(`Prof. ${currentUser.name || 'Rogério Augusto'} <${currentUser.email || 'rogerioaugusto@gmail.com'}>`);
   };
 
   useEffect(() => {
@@ -403,32 +425,58 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
     }
   };
 
-  const handleOpenGmailWeb = () => {
-    const targetEmail = currentUser.email || destinatarioEmail || 'rogerioaugusto@gmail.com';
-    const fixedSubject = 'FICHA DE ORIENTAÇÃO - FAATESP';
-    const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(targetEmail)}&su=${encodeURIComponent(fixedSubject)}&body=${encodeURIComponent(emailBody)}`;
-    const link = document.createElement('a');
-    link.href = url;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.click();
+  const handleOpenGmailWeb = (customTargetEmail?: string, customSubject?: string, customBody?: string) => {
+    const studentTargetEmail = (customTargetEmail || destinatarioEmail || selectedFicha?.usuarioEmail || alunoEmailInput || emailModalFicha?.usuarioEmail || '').trim();
+    const finalRecipient = (studentTargetEmail && studentTargetEmail.includes('@')) ? studentTargetEmail : '';
+    const isApproved = selectedFicha ? (selectedFicha.status === 'aprovado' || statusInput === 'aprovado') : (emailModalFicha?.status === 'aprovado');
+    const finalSubject = customSubject || emailSubject || (isApproved 
+      ? `[FAATESP TCC] 🎉 Parabéns! Sua Ficha de TCC foi APROVADA - Nota: ${notaInput || selectedFicha?.nota || '10'}` 
+      : `[FAATESP TCC] ⚠️ Parecer do Orientador: Ajustes Necessários no TCC`);
+    const finalBody = customBody || emailBody || (
+      `Olá ${selectedFicha?.nomeAluno || emailModalFicha?.nomeAluno || 'Aluno(a)'},\n\n` +
+      `Sua Ficha de Orientação de TCC foi avaliada pelo seu orientador:\n\n` +
+      `SITUAÇÃO: ${isApproved ? 'APROVADO' : 'NECESSITA AJUSTES / RESTRIÇÕES'}\n` +
+      `NOTA ATRIBUÍDA: ${notaInput || selectedFicha?.nota || emailModalFicha?.nota || 'Pendente'}\n\n` +
+      `PARECER DO ORIENTADOR:\n"${parecerText || selectedFicha?.parecerOrientador || emailModalFicha?.parecerOrientador || 'Parecer de acompanhamento registrado no sistema.'}"\n\n` +
+      `Acesse o sistema da FAATESP para visualizar sua ficha.\n\n` +
+      `Atenciosamente,\n${currentUser.name || selectedFicha?.professorOrientador || 'Prof. Orientador'}\nFaculdade Álvares de Azevedo - FAATESP`
+    );
+    const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(finalRecipient)}&su=${encodeURIComponent(finalSubject)}&body=${encodeURIComponent(finalBody)}`;
+    window.open(url, '_blank');
   };
 
-  const handleOpenOutlookWeb = () => {
-    const targetEmail = currentUser.email || destinatarioEmail || 'rogerioaugusto@gmail.com';
-    const fixedSubject = 'FICHA DE ORIENTAÇÃO - FAATESP';
-    const url = `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(targetEmail)}&subject=${encodeURIComponent(fixedSubject)}&body=${encodeURIComponent(emailBody)}`;
-    const link = document.createElement('a');
-    link.href = url;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.click();
+  const handleOpenOutlookWeb = (customTargetEmail?: string, customSubject?: string, customBody?: string) => {
+    const studentTargetEmail = (customTargetEmail || destinatarioEmail || selectedFicha?.usuarioEmail || alunoEmailInput || emailModalFicha?.usuarioEmail || '').trim();
+    const finalRecipient = (studentTargetEmail && studentTargetEmail.includes('@')) ? studentTargetEmail : '';
+    const isApproved = selectedFicha ? (selectedFicha.status === 'aprovado' || statusInput === 'aprovado') : (emailModalFicha?.status === 'aprovado');
+    const finalSubject = customSubject || emailSubject || (isApproved 
+      ? `[FAATESP TCC] 🎉 Parecer do Orientador: Ficha APROVADA` 
+      : `[FAATESP TCC] ⚠️ Parecer do Orientador: Ajustes Necessários`);
+    const finalBody = customBody || emailBody || (
+      `Olá ${selectedFicha?.nomeAluno || emailModalFicha?.nomeAluno || 'Aluno(a)'},\n\n` +
+      `Sua Ficha de Orientação de TCC foi avaliada pelo seu orientador:\n\n` +
+      `SITUAÇÃO: ${isApproved ? 'APROVADO' : 'NECESSITA AJUSTES'}\n` +
+      `NOTA: ${notaInput || selectedFicha?.nota || 'Pendente'}\n\n` +
+      `PARECER:\n"${parecerText || selectedFicha?.parecerOrientador || ''}"\n\n` +
+      `Atenciosamente,\n${currentUser.name || 'Prof. Orientador'}\nFAATESP`
+    );
+    const url = `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(finalRecipient)}&subject=${encodeURIComponent(finalSubject)}&body=${encodeURIComponent(finalBody)}`;
+    window.open(url, '_blank');
   };
 
-  const handleOpenMailto = () => {
-    const targetEmail = currentUser.email || destinatarioEmail || 'rogerioaugusto@gmail.com';
-    const fixedSubject = 'FICHA DE ORIENTAÇÃO - FAATESP';
-    const url = `mailto:${encodeURIComponent(targetEmail)}?subject=${encodeURIComponent(fixedSubject)}&body=${encodeURIComponent(emailBody)}`;
+  const handleOpenMailto = (customTargetEmail?: string, customSubject?: string, customBody?: string) => {
+    const studentTargetEmail = (customTargetEmail || destinatarioEmail || selectedFicha?.usuarioEmail || alunoEmailInput || emailModalFicha?.usuarioEmail || '').trim();
+    const finalRecipient = (studentTargetEmail && studentTargetEmail.includes('@')) ? studentTargetEmail : '';
+    const isApproved = selectedFicha ? (selectedFicha.status === 'aprovado' || statusInput === 'aprovado') : (emailModalFicha?.status === 'aprovado');
+    const finalSubject = customSubject || emailSubject || (isApproved 
+      ? `[FAATESP TCC] Parecer do Orientador: APROVADO` 
+      : `[FAATESP TCC] Parecer do Orientador: Ajustes Necessários`);
+    const finalBody = customBody || emailBody || (
+      `Olá ${selectedFicha?.nomeAluno || 'Aluno(a)'},\n\n` +
+      `Parecer: "${parecerText || selectedFicha?.parecerOrientador || ''}"\n` +
+      `Nota: ${notaInput || selectedFicha?.nota || ''}\n\nFAATESP`
+    );
+    const url = `mailto:${encodeURIComponent(finalRecipient)}?subject=${encodeURIComponent(finalSubject)}&body=${encodeURIComponent(finalBody)}`;
     window.location.href = url;
   };
 
@@ -499,6 +547,16 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
         console.warn('PDF não anexado ao disparo em segundo plano:', pdfErr);
       }
 
+      // Load persistent SMTP settings so automatic dispatch uses them
+      const savedSmtp = storageService.getSmtpConfig();
+      const customSmtpPayload = (savedSmtp.enabled || (useCustomSmtp && smtpHost && smtpUser && smtpPass)) ? {
+        host: savedSmtp.host || smtpHost,
+        port: Number(savedSmtp.port || smtpPort) || 587,
+        user: savedSmtp.user || smtpUser,
+        pass: savedSmtp.pass || smtpPass,
+        from: savedSmtp.from || smtpFrom
+      } : null;
+
       const res = await fetch('/api/send-status-notification', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -512,38 +570,39 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
           parecerOrientador: ficha.parecerOrientador,
           appUrl,
           pdfBase64,
-          pdfFilename
+          pdfFilename,
+          customSmtp: customSmtpPayload
         })
       });
 
-      let data: any = { success: true };
+      let data: any = {};
       try {
         const text = await res.text();
         data = JSON.parse(text);
       } catch {
-        data = { success: true, message: 'Notificação gravada e enviada com sucesso!' };
+        data = { success: false, sent: false, message: 'Notificação gravada no sistema.' };
       }
 
-      if (data.success) {
+      if (data.sent) {
         setAutoSendResult({
           status: 'success',
-          message: `✉️ E-mail (${isApproved ? 'Tag Verde • Aprovado' : 'Tag Laranja • Restrições'}) enviado automaticamente para ${targetEmail}!`
+          message: `✉️ E-mail oficial entregue com sucesso para ${targetEmail}!`
         });
         setToastNotification({
           type: 'success',
-          title: '✓ E-mail Disparado com Sucesso!',
-          message: `Notificação enviada com sucesso para ${targetEmail} (${ficha.nomeAluno}).`
+          title: '✓ E-mail Entregue com Sucesso!',
+          message: data.message || `Notificação enviada com sucesso para ${targetEmail} (${ficha.nomeAluno}).`
         });
         fetchEmailHistory();
       } else {
         setAutoSendResult({
           status: 'warning',
-          message: `Notificação gravada no sistema: ${data.message || 'Pronto'}.`
+          message: data.message || `Parecer salvo no sistema.`
         });
         setToastNotification({
-          type: 'info',
-          title: 'Notificação Registrada',
-          message: `Parecer salvo no sistema com sucesso.`
+          type: 'warning',
+          title: 'Parecer Salvo (Aviso de E-mail)',
+          message: data.message || `Parecer salvo. Configure o SMTP ou use o envio via Gmail para entregar ao aluno.`
         });
       }
     } catch (err: any) {
@@ -1433,10 +1492,28 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
                       handleSaveAndSendEmail();
                     }}
                     className="px-4 py-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-extrabold rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-60"
-                    title="Salvar parecer e disparar e-mail com PDF anexo para o aluno imediatamente"
+                    title="Salvar parecer e disparar e-mail automático via servidor SMTP com PDF anexo"
                   >
                     <Send className="w-4 h-4 text-purple-200" />
                     <span>Salvar e Disparar E-mail</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedFicha) {
+                        const targetStudentEmail = (alunoEmailInput || selectedFicha.usuarioEmail || '').trim();
+                        handleSaveReview(false);
+                        setSelectedFicha(null);
+                        setEmailModalFicha(null);
+                        handleOpenGmailWeb(targetStudentEmail);
+                      }
+                    }}
+                    className="px-3.5 py-2 bg-rose-900/80 hover:bg-rose-800 text-rose-200 border border-rose-700 text-xs font-bold rounded-xl transition-all shadow-md flex items-center justify-center space-x-1.5 cursor-pointer"
+                    title="Salvar parecer e abrir o Gmail Web com o e-mail do aluno e parecer preenchidos"
+                  >
+                    <Mail className="w-3.5 h-3.5 text-rose-300" />
+                    <span>Salvar & Abrir Gmail</span>
                   </button>
 
                   <button
@@ -1686,7 +1763,7 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <button
                         type="button"
-                        onClick={handleOpenGmailWeb}
+                        onClick={() => handleOpenGmailWeb()}
                         className="px-3 py-2 bg-rose-900/80 hover:bg-rose-800 text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center space-x-1.5 cursor-pointer border border-rose-700/80 shadow-sm"
                       >
                         <Mail className="w-3.5 h-3.5 text-rose-300" />
@@ -1695,7 +1772,7 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
 
                       <button
                         type="button"
-                        onClick={handleOpenOutlookWeb}
+                        onClick={() => handleOpenOutlookWeb()}
                         className="px-3 py-2 bg-blue-900/80 hover:bg-blue-800 text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center space-x-1.5 cursor-pointer border border-blue-700/80 shadow-sm"
                       >
                         <Mail className="w-3.5 h-3.5 text-blue-300" />
@@ -1704,7 +1781,7 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
 
                       <button
                         type="button"
-                        onClick={handleOpenMailto}
+                        onClick={() => handleOpenMailto()}
                         className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition-colors flex items-center justify-center space-x-1.5 cursor-pointer border border-slate-700 shadow-sm"
                       >
                         <Mail className="w-3.5 h-3.5 text-slate-400" />
@@ -1745,17 +1822,17 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
-                      <span>E-mail do Destinatário:</span>
-                      <span className="text-[10px] text-amber-300 bg-amber-950/80 px-1.5 py-0.5 rounded font-bold border border-amber-800">
-                        E-mail Logado (Inativo)
+                      <span>E-mail do Aluno (Destinatário):</span>
+                      <span className="text-[10px] text-emerald-300 bg-emerald-950/80 px-1.5 py-0.5 rounded font-bold border border-emerald-800">
+                        Destinatário Oficial
                       </span>
                     </label>
                     <input
                       type="email"
-                      value={currentUser.email || 'rogerioaugusto@gmail.com'}
-                      disabled
-                      readOnly
-                      className="w-full bg-[#080d1a] border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-300 font-semibold cursor-not-allowed opacity-80"
+                      value={destinatarioEmail}
+                      onChange={(e) => setDestinatarioEmail(e.target.value)}
+                      placeholder="aluno@email.com"
+                      className="w-full bg-[#0d1629] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-semibold focus:outline-none focus:border-purple-500"
                     />
                   </div>
 
@@ -1950,6 +2027,35 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
                           className="w-full bg-[#0d1629] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
                         />
                       </div>
+
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-2 border-t border-slate-800">
+                        <button
+                          type="button"
+                          onClick={handleQuickFillGmail}
+                          className="w-full sm:w-auto px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-semibold cursor-pointer border border-slate-700 flex items-center justify-center space-x-1.5 transition-colors"
+                          title="Preenche automaticamente servidor Gmail (smtp.gmail.com:465)"
+                        >
+                          <Server className="w-3.5 h-3.5 text-blue-400" />
+                          <span>Preencher Padrão Gmail</span>
+                        </button>
+
+                        <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
+                          {smtpSaveSuccess && (
+                            <span className="text-emerald-400 text-xs font-bold flex items-center space-x-1 animate-fade-in">
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Configurações salvas!</span>
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={handleSaveSmtpConfig}
+                            className="w-full sm:w-auto px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold cursor-pointer shadow flex items-center justify-center space-x-1.5 transition-all"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            <span>Salvar Configurações de SMTP</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2063,7 +2169,7 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
               <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
                 <button
                   type="button"
-                  onClick={handleOpenGmailWeb}
+                  onClick={() => handleOpenGmailWeb()}
                   className="px-3 py-2 bg-rose-900/80 hover:bg-rose-800 text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center space-x-1 cursor-pointer border border-rose-700"
                 >
                   <Mail className="w-3.5 h-3.5 text-rose-300" />
@@ -2072,7 +2178,7 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
 
                 <button
                   type="button"
-                  onClick={handleOpenOutlookWeb}
+                  onClick={() => handleOpenOutlookWeb()}
                   className="px-3 py-2 bg-blue-900/80 hover:bg-blue-800 text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center space-x-1 cursor-pointer border border-blue-700"
                 >
                   <Mail className="w-3.5 h-3.5 text-blue-300" />
@@ -2081,7 +2187,7 @@ export const ConsultaOrientadorScreen: React.FC<ConsultaOrientadorScreenProps> =
 
                 <button
                   type="button"
-                  onClick={handleOpenMailto}
+                  onClick={() => handleOpenMailto()}
                   disabled={isSendingEmailPdf}
                   className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors cursor-pointer flex items-center justify-center space-x-1 disabled:opacity-50 border border-slate-700"
                 >

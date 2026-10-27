@@ -9,7 +9,17 @@ const STORAGE_KEY_ACCESS_LOGS = 'pm_faatesp_access_logs';
 const STORAGE_KEY_INSTITUTIONAL_LOGO = 'pm_faatesp_institutional_logo';
 const STORAGE_KEY_SCHEMA_VERSION = 'pm_faatesp_schema_version';
 const STORAGE_KEY_DELETED_FICHAS = 'pm_faatesp_deleted_fichas';
+const STORAGE_KEY_SMTP_CONFIG = 'pm_faatesp_smtp_config';
 const CURRENT_SCHEMA_VERSION = 'v20261014_clean_v3';
+
+export interface SmtpConfig {
+  host: string;
+  port: string;
+  user: string;
+  pass: string;
+  from: string;
+  enabled: boolean;
+}
 
 export function isMarineuza(item?: { id?: string; usuarioEmail?: string; email?: string; nomeAluno?: string; name?: string } | null): boolean {
   if (!item) return false;
@@ -147,6 +157,30 @@ export const storageService = {
       localStorage.removeItem(STORAGE_KEY_USER);
     } catch (e) {
       console.error('Error logging out', e);
+    }
+  },
+
+  // SMTP Settings Persistence
+  getSmtpConfig(): SmtpConfig {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY_SMTP_CONFIG);
+      if (data) return JSON.parse(data);
+    } catch {}
+    return {
+      host: '',
+      port: '587',
+      user: '',
+      pass: '',
+      from: 'FAATESP TCC <orientacao@faatesp.edu.br>',
+      enabled: false
+    };
+  },
+
+  saveSmtpConfig(config: SmtpConfig): void {
+    try {
+      localStorage.setItem(STORAGE_KEY_SMTP_CONFIG, JSON.stringify(config));
+    } catch (e) {
+      console.error('Error saving SMTP config', e);
     }
   },
 
